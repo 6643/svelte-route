@@ -1,13 +1,11 @@
 <svelte:options runes={true} />
 
 <script lang="ts">
-  import { onMount } from 'svelte';
-
   import { lifecycle } from './lifecycle.ts';
 
   let props = $props<{ id?: number; path?: string; component?: string }>();
 
-  onMount(() => {
+  $effect(() => {
     lifecycle.syncAMounts += 1;
 
     return () => {

@@ -1,86 +1,37 @@
-import { decodeRouteProps } from './query.ts';
 import { buildPushState, buildReplaceState, normalizeHistoryState } from './history.ts';
-import { getRawAnchorNavigationTarget, normalizeNavigationTarget } from './navigation.ts';
+import { normalizeNavigationTarget } from './navigation.ts';
 import type { RouteDecoderMap, RouteEntry, RouteHistoryState } from './types.ts';
 
-export const routerState = $state({
-  entries: [] as RouteEntry[],
-  currentPath: '/',
-  historyState: {
-    __route: {
-      index: 0,
-      stack: ['/']
-    }
-  } as RouteHistoryState
-});
 let initialized = false;
-let removeBrowserListeners: (() => void) | null = null;
+let currentPath = '/';
+let historyState: RouteHistoryState = {
+  __route: {
+    index: 0,
+    stack: ['/']
+  }
+};
+let entries: RouteEntry[] = [];
+const listeners = new Set<() => void>();
 
-function inBrowser(): boolean {
-  return typeof window !== 'undefined' && typeof document !== 'undefined' && typeof history !== 'undefined';
+function notify(): void {
+  for (const listener of listeners) {
+    listener();
+  }
 }
 
 function ensureBrowser(): void {
-  if (!inBrowser()) {
+  if (
+    typeof window === 'undefined' ||
+    typeof document === 'undefined' ||
+    typeof history === 'undefined' ||
+    typeof location === 'undefined'
+  ) {
     throw new Error('svelte-route requires a browser environment');
   }
 }
 
 function readCurrentPath(): string {
   return `${window.location.pathname}${window.location.search}` || '/';
-}
-
-function syncFromBrowser(): void {
-  const nextPath = readCurrentPath();
-  const nextHistoryState = normalizeHistoryState(history.state, nextPath);
-
-  routerState.currentPath = nextPath;
-  routerState.historyState = nextHistoryState;
-
-  if (history.state !== nextHistoryState) {
-    history.replaceState(nextHistoryState, '', nextPath);
-  }
-}
-
-function handleDocumentClick(event: MouseEvent): void {
-  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-    return;
-  }
-
-  const target = event.target;
-  if (!(target instanceof Element)) {
-    return;
-  }
-
-  const anchor = target.closest('a');
-  if (!(anchor instanceof HTMLAnchorElement)) {
-    return;
-  }
-
-  const targetAttr = anchor.getAttribute('target');
-  if (targetAttr && targetAttr !== '_self') {
-    return;
-  }
-
-  if (anchor.hasAttribute('download')) {
-    return;
-  }
-
-  const raw = getRawAnchorNavigationTarget(anchor);
-  if (!raw) {
-    return;
-  }
-
-  try {
-    const nextPath = normalizeNavigationTarget(raw, routerState.currentPath, window.location.origin);
-    event.preventDefault();
-
-    if (nextPath !== routerState.currentPath) {
-      navigate('push', raw);
-    }
-  } catch {
-    return;
-  }
 }
 
 function ensureRuntime(): void {
@@ -90,24 +41,9 @@ function ensureRuntime(): void {
     return;
   }
 
-  syncFromBrowser();
-
-  const popstate = (): void => {
-    syncFromBrowser();
-  };
-
-  const click = (event: MouseEvent): void => {
-    handleDocumentClick(event);
-  };
-
-  window.addEventListener('popstate', popstate);
-  document.addEventListener('click', click);
-
-  removeBrowserListeners = () => {
-    window.removeEventListener('popstate', popstate);
-    document.removeEventListener('click', click);
-  };
-
+  currentPath = readCurrentPath();
+  historyState = normalizeHistoryState(history.state, currentPath);
+  history.replaceState(historyState, '', currentPath);
   initialized = true;
 }
 
@@ -118,12 +54,12 @@ export function initRouteSystem(): void {
 function navigate(kind: 'push' | 'replace', target: string): void {
   ensureRuntime();
 
-  const nextPath = normalizeNavigationTarget(target, routerState.currentPath, window.location.origin);
-  if (nextPath === routerState.currentPath) {
+  const nextPath = normalizeNavigationTarget(target, currentPath, window.location.origin);
+  if (nextPath === currentPath) {
     return;
   }
 
-  const nextState = kind === 'push' ? buildPushState(routerState.historyState, nextPath) : buildReplaceState(routerState.historyState, nextPath);
+  const nextState = kind === 'push' ? buildPushState(historyState, nextPath) : buildReplaceState(historyState, nextPath);
 
   if (kind === 'push') {
     history.pushState(nextState, '', nextPath);
@@ -131,17 +67,38 @@ function navigate(kind: 'push' | 'replace', target: string): void {
     history.replaceState(nextState, '', nextPath);
   }
 
-  routerState.currentPath = nextPath;
-  routerState.historyState = nextState;
+  currentPath = nextPath;
+  historyState = nextState;
+  notify();
+}
+
+export function subscribeRuntime(update: () => void): () => void {
+  listeners.add(update);
+
+  return () => {
+    listeners.delete(update);
+  };
 }
 
 export function registerRoute(entry: RouteEntry): () => void {
   ensureRuntime();
-  routerState.entries = [...routerState.entries, entry];
+  entries = [...entries, entry];
+  notify();
 
   return () => {
-    routerState.entries = routerState.entries.filter((candidate) => candidate.id !== entry.id);
+    entries = entries.filter((candidate) => candidate.id !== entry.id);
+    notify();
   };
+}
+
+export function getMatchedRouteId(): symbol | null {
+  const pathname = currentPath.split('?')[0] || '/';
+
+  return entries.find((entry) => entry.path === pathname)?.id ?? entries.find((entry) => entry.path === '*')?.id ?? null;
+}
+
+export function getCurrentSearch(): string {
+  return currentPath.includes('?') ? `?${currentPath.split('?').slice(1).join('?')}` : '';
 }
 
 export function routePush(path: string): void {
@@ -154,43 +111,28 @@ export function routeReplace(path: string): void {
 
 export function routeCurrentPath(): string {
   ensureRuntime();
-  return routerState.currentPath;
+  return currentPath;
 }
 
 export function routeBackPath(): string | null {
   ensureRuntime();
-  return routerState.historyState.__route.stack[routerState.historyState.__route.index - 1] ?? null;
+  return historyState.__route.stack[historyState.__route.index - 1] ?? null;
 }
 
 export function routeForwardPath(): string | null {
   ensureRuntime();
-  return routerState.historyState.__route.stack[routerState.historyState.__route.index + 1] ?? null;
-}
-
-export function getMatchedRouteId(): symbol | null {
-  const pathname = routerState.currentPath.split('?')[0] || '/';
-
-  return routerState.entries.find((entry) => entry.path === pathname)?.id ?? routerState.entries.find((entry) => entry.path === '*')?.id ?? null;
-}
-
-export function getCurrentSearch(): string {
-  return routerState.currentPath.includes('?') ? `?${routerState.currentPath.split('?').slice(1).join('?')}` : '';
-}
-
-export function getDecodedProps(decoders: RouteDecoderMap): Record<string, unknown> {
-  return decodeRouteProps(getCurrentSearch(), decoders);
+  return historyState.__route.stack[historyState.__route.index + 1] ?? null;
 }
 
 export function __resetRouteSystemForTest(): void {
-  removeBrowserListeners?.();
-  removeBrowserListeners = null;
-  routerState.entries = [];
-  routerState.currentPath = '/';
-  routerState.historyState = {
+  initialized = false;
+  currentPath = '/';
+  entries = [];
+  listeners.clear();
+  historyState = {
     __route: {
       index: 0,
       stack: ['/']
     }
   };
-  initialized = false;
 }
