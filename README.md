@@ -1,11 +1,11 @@
 # svelte-route
 
-A lightweight SPA router for Svelte 5 projects.
+A lightweight SPA router for Svelte projects.
 
 ## Features
 
 - Bun-only workflow
-- Svelte 5 only
+- Svelte only
 - Declarative `<Route>` API
 - Programmatic navigation helpers
 - Query decoder props with `$name` syntax
