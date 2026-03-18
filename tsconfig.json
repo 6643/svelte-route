@@ -6,15 +6,15 @@
     "strict": true,
     "noEmit": true,
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "lib": ["DOM", "ESNext"],
-    "types": ["vitest/globals", "node"]
+    "types": ["node"]
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.svelte",
     "tests/**/*.ts",
-    "tests/**/*.svelte",
-    "vite.config.ts"
+    "tests/**/*.svelte"
   ]
 }

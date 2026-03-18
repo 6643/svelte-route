@@ -1,0 +1,42 @@
+import type { RouteDecoder, RouteDecoderMap } from './types.ts';
+
+export function decodeQueryValue(raw: string | null, decoder: RouteDecoder): unknown {
+  if (decoder === String) {
+    return raw ?? undefined;
+  }
+
+  if (decoder === Number) {
+    if (raw == null || raw === '') {
+      return undefined;
+    }
+
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (decoder === Boolean) {
+    if (raw === 'true') {
+      return true;
+    }
+
+    if (raw === 'false') {
+      return false;
+    }
+
+    return undefined;
+  }
+
+  return decoder(raw);
+}
+
+export function decodeRouteProps(search: string, decoders: RouteDecoderMap): Record<string, unknown> {
+  const params = new URLSearchParams(search);
+  const output: Record<string, unknown> = {};
+
+  for (const key in decoders) {
+    const name = key.slice(1);
+    output[name] = decodeQueryValue(params.get(name), decoders[key as keyof RouteDecoderMap]);
+  }
+
+  return output;
+}
