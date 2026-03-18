@@ -13,13 +13,13 @@ let historyState: RouteHistoryState = {
 let entries: RouteEntry[] = [];
 const listeners = new Set<() => void>();
 
-function notify(): void {
+const notify = (): void => {
   for (const listener of listeners) {
     listener();
   }
-}
+};
 
-function ensureBrowser(): void {
+const ensureBrowser = (): void => {
   if (
     typeof window === 'undefined' ||
     typeof document === 'undefined' ||
@@ -28,13 +28,11 @@ function ensureBrowser(): void {
   ) {
     throw new Error('svelte-route requires a browser environment');
   }
-}
+};
 
-function readCurrentPath(): string {
-  return `${window.location.pathname}${window.location.search}` || '/';
-}
+const readCurrentPath = (): string => `${window.location.pathname}${window.location.search}` || '/';
 
-function ensureRuntime(): void {
+const ensureRuntime = (): void => {
   ensureBrowser();
 
   if (initialized) {
@@ -45,13 +43,13 @@ function ensureRuntime(): void {
   historyState = normalizeHistoryState(history.state, currentPath);
   history.replaceState(historyState, '', currentPath);
   initialized = true;
-}
+};
 
-export function initRouteSystem(): void {
+export const initRouteSystem = (): void => {
   ensureRuntime();
-}
+};
 
-function navigate(kind: 'push' | 'replace', target: string): void {
+const navigate = (kind: 'push' | 'replace', target: string): void => {
   ensureRuntime();
 
   const nextPath = normalizeNavigationTarget(target, currentPath, window.location.origin);
@@ -70,17 +68,17 @@ function navigate(kind: 'push' | 'replace', target: string): void {
   currentPath = nextPath;
   historyState = nextState;
   notify();
-}
+};
 
-export function subscribeRuntime(update: () => void): () => void {
+export const subscribeRuntime = (update: () => void): (() => void) => {
   listeners.add(update);
 
   return () => {
     listeners.delete(update);
   };
-}
+};
 
-export function registerRoute(entry: RouteEntry): () => void {
+export const registerRoute = (entry: RouteEntry): (() => void) => {
   ensureRuntime();
   entries = [...entries, entry];
   notify();
@@ -89,42 +87,40 @@ export function registerRoute(entry: RouteEntry): () => void {
     entries = entries.filter((candidate) => candidate.id !== entry.id);
     notify();
   };
-}
+};
 
-export function getMatchedRouteId(): symbol | null {
+export const getMatchedRouteId = (): symbol | null => {
   const pathname = currentPath.split('?')[0] || '/';
 
   return entries.find((entry) => entry.path === pathname)?.id ?? entries.find((entry) => entry.path === '*')?.id ?? null;
-}
+};
 
-export function getCurrentSearch(): string {
-  return currentPath.includes('?') ? `?${currentPath.split('?').slice(1).join('?')}` : '';
-}
+export const getCurrentSearch = (): string => currentPath.includes('?') ? `?${currentPath.split('?').slice(1).join('?')}` : '';
 
-export function routePush(path: string): void {
+export const routePush = (path: string): void => {
   navigate('push', path);
-}
+};
 
-export function routeReplace(path: string): void {
+export const routeReplace = (path: string): void => {
   navigate('replace', path);
-}
+};
 
-export function routeCurrentPath(): string {
+export const routeCurrentPath = (): string => {
   ensureRuntime();
   return currentPath;
-}
+};
 
-export function routeBackPath(): string | null {
+export const routeBackPath = (): string | null => {
   ensureRuntime();
   return historyState.__route.stack[historyState.__route.index - 1] ?? null;
-}
+};
 
-export function routeForwardPath(): string | null {
+export const routeForwardPath = (): string | null => {
   ensureRuntime();
   return historyState.__route.stack[historyState.__route.index + 1] ?? null;
-}
+};
 
-export function __resetRouteSystemForTest(): void {
+export const __resetRouteSystemForTest = (): void => {
   initialized = false;
   currentPath = '/';
   entries = [];
@@ -135,4 +131,4 @@ export function __resetRouteSystemForTest(): void {
       stack: ['/']
     }
   };
-}
+};

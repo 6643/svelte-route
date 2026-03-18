@@ -8,9 +8,9 @@
 
   let current = $state(SyncA);
 
-  export function swap(): void {
+  export const swap = (): void => {
     current = SyncB;
-  }
+  };
 </script>
 
 <Route path="/" component={current} />

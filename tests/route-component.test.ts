@@ -12,7 +12,7 @@ import { lifecycle, resetLifecycle } from './fixtures/lifecycle.ts';
 let cleanupDom = () => {};
 let mounted: any = null;
 
-function installDom(path: string) {
+const installDom = (path: string) => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
     url: `https://app.test${path}`
   });
@@ -57,7 +57,7 @@ function installDom(path: string) {
     globalThis.EventTarget = previous.EventTarget;
     dom.window.close();
   };
-}
+};
 
 beforeEach(() => {
   cleanupDom = installDom('/missing');

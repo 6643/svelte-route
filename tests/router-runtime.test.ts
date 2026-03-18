@@ -12,7 +12,7 @@ import {
 
 let cleanupDom = () => {};
 
-function installDom(path: string) {
+const installDom = (path: string) => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
     url: `https://app.test${path}`
   });
@@ -36,7 +36,7 @@ function installDom(path: string) {
     globalThis.location = previous.location;
     dom.window.close();
   };
-}
+};
 
 beforeEach(() => {
   cleanupDom = installDom('/a');

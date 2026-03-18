@@ -3,7 +3,7 @@ export const lifecycle = {
   syncADestroys: 0
 };
 
-export function resetLifecycle(): void {
+export const resetLifecycle = (): void => {
   lifecycle.syncAMounts = 0;
   lifecycle.syncADestroys = 0;
-}
+};

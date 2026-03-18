@@ -6,7 +6,7 @@ import { compile } from 'svelte/compiler';
 
 const cacheRoot = resolve('.bun-svelte-cache');
 
-async function resolveImportSpecifier(sourceFile: string, specifier: string): Promise<string> {
+const resolveImportSpecifier = async (sourceFile: string, specifier: string): Promise<string> => {
   const resolved = resolve(dirname(sourceFile), specifier);
 
   if (resolved.endsWith('.svelte')) {
@@ -15,9 +15,9 @@ async function resolveImportSpecifier(sourceFile: string, specifier: string): Pr
   }
 
   return pathToFileURL(resolved).href;
-}
+};
 
-async function rewriteRelativeImports(code: string, sourceFile: string): Promise<string> {
+const rewriteRelativeImports = async (code: string, sourceFile: string): Promise<string> => {
   const matches = [...code.matchAll(/from\s+['"](\.[^'"]+)['"]/g)];
   let rewritten = code;
 
@@ -29,9 +29,9 @@ async function rewriteRelativeImports(code: string, sourceFile: string): Promise
   }
 
   return rewritten;
-}
+};
 
-async function compileToFile(sourceFile: string): Promise<string> {
+const compileToFile = async (sourceFile: string): Promise<string> => {
   const absoluteSource = resolve(sourceFile);
 
   mkdirSync(cacheRoot, { recursive: true });
@@ -49,10 +49,10 @@ async function compileToFile(sourceFile: string): Promise<string> {
   mkdirSync(dirname(outputFile), { recursive: true });
   writeFileSync(outputFile, rewritten, 'utf8');
   return outputFile;
-}
+};
 
-export async function loadCompiledComponent(sourceFile: string): Promise<unknown> {
+export const loadCompiledComponent = async (sourceFile: string): Promise<unknown> => {
   const outputFile = await compileToFile(sourceFile);
   const module = await import(pathToFileURL(outputFile).href);
   return module.default;
-}
+};

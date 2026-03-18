@@ -5,7 +5,7 @@ import { buildPushState, buildReplaceState, normalizeHistoryState } from '../src
 import { getRawAnchorNavigationTarget, normalizeNavigationTarget } from '../src/lib/navigation.ts';
 import { decodeQueryValue, decodeRouteProps } from '../src/lib/query.ts';
 
-function createAnchor(href: string) {
+const createAnchor = (href: string) => {
   const { window } = new JSDOM('<a></a>');
   const anchor = window.document.querySelector('a');
 
@@ -15,7 +15,7 @@ function createAnchor(href: string) {
 
   anchor.setAttribute('href', href);
   return anchor;
-}
+};
 
 describe('query decoders', () => {
   test('decodes Number values', () => {

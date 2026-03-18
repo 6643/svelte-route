@@ -13,5 +13,5 @@ declare module 'bun:test' {
     toThrow(expected?: RegExp | string): void;
   };
 
-  export function expect(value: unknown): Matchers;
+  export const expect: (value: unknown) => Matchers;
 }

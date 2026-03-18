@@ -18,15 +18,11 @@
 
   let props: RouteProps = $props();
 
-  function isDecoder(value: unknown): value is RouteDecoder {
-    return value === String || value === Number || value === Boolean || typeof value === 'function';
-  }
+  const isDecoder = (value: unknown): value is RouteDecoder => value === String || value === Number || value === Boolean || typeof value === 'function';
 
-  function isLazyLoader(value: RouteComponent): boolean {
-    return value.length === 0;
-  }
+  const isLazyLoader = (value: RouteComponent): boolean => value.length === 0;
 
-  function validateRouteProps(): { path: string; component: RouteComponent; decoders: RouteDecoderMap } {
+  const validateRouteProps = (): { path: string; component: RouteComponent; decoders: RouteDecoderMap } => {
     if (typeof props.path !== 'string') {
       throw new Error('Route path must be a string');
     }
@@ -55,7 +51,7 @@
     }
 
     return { path: props.path, component: props.component, decoders };
-  }
+  };
 
   initRouteSystem();
 

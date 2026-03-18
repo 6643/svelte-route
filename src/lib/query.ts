@@ -1,6 +1,6 @@
 import type { RouteDecoder, RouteDecoderMap } from './types.ts';
 
-export function decodeQueryValue(raw: string | null, decoder: RouteDecoder): unknown {
+export const decodeQueryValue = (raw: string | null, decoder: RouteDecoder): unknown => {
   if (decoder === String) {
     return raw ?? undefined;
   }
@@ -27,9 +27,9 @@ export function decodeQueryValue(raw: string | null, decoder: RouteDecoder): unk
   }
 
   return decoder(raw);
-}
+};
 
-export function decodeRouteProps(search: string, decoders: RouteDecoderMap): Record<string, unknown> {
+export const decodeRouteProps = (search: string, decoders: RouteDecoderMap): Record<string, unknown> => {
   const params = new URLSearchParams(search);
   const output: Record<string, unknown> = {};
 
@@ -39,4 +39,4 @@ export function decodeRouteProps(search: string, decoders: RouteDecoderMap): Rec
   }
 
   return output;
-}
+};

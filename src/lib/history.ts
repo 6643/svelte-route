@@ -1,6 +1,6 @@
 import type { RouteHistoryState } from './types.ts';
 
-export function normalizeHistoryState(state: unknown, currentPath: string): RouteHistoryState {
+export const normalizeHistoryState = (state: unknown, currentPath: string): RouteHistoryState => {
   const base = state && typeof state === 'object' ? { ...(state as Record<string, unknown>) } : {};
   const route = base.__route;
 
@@ -20,9 +20,9 @@ export function normalizeHistoryState(state: unknown, currentPath: string): Rout
       stack: [currentPath]
     }
   };
-}
+};
 
-export function buildPushState(prev: RouteHistoryState, nextPath: string): RouteHistoryState {
+export const buildPushState = (prev: RouteHistoryState, nextPath: string): RouteHistoryState => {
   const nextIndex = prev.__route.index + 1;
 
   return {
@@ -32,9 +32,9 @@ export function buildPushState(prev: RouteHistoryState, nextPath: string): Route
       stack: [...prev.__route.stack.slice(0, nextIndex), nextPath]
     }
   };
-}
+};
 
-export function buildReplaceState(prev: RouteHistoryState, nextPath: string): RouteHistoryState {
+export const buildReplaceState = (prev: RouteHistoryState, nextPath: string): RouteHistoryState => {
   const nextStack = prev.__route.stack.slice();
   nextStack[prev.__route.index] = nextPath;
 
@@ -45,4 +45,4 @@ export function buildReplaceState(prev: RouteHistoryState, nextPath: string): Ro
       stack: nextStack
     }
   };
-}
+};

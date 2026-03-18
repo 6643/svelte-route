@@ -1,8 +1,6 @@
-function isBareRelativeHref(raw: string): boolean {
-  return !raw.startsWith('/') && !raw.startsWith('?') && !raw.startsWith('#') && !/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(raw);
-}
+const isBareRelativeHref = (raw: string): boolean => !raw.startsWith('/') && !raw.startsWith('?') && !raw.startsWith('#') && !/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(raw);
 
-export function normalizeNavigationTarget(target: string, currentPath: string, origin: string): string {
+export const normalizeNavigationTarget = (target: string, currentPath: string, origin: string): string => {
   if (target === '?') {
     return currentPath.split('?')[0] || '/';
   }
@@ -28,9 +26,9 @@ export function normalizeNavigationTarget(target: string, currentPath: string, o
   }
 
   return url.search ? `${url.pathname}${url.search}` : url.pathname;
-}
+};
 
-export function getRawAnchorNavigationTarget(anchor: HTMLAnchorElement): string | null {
+export const getRawAnchorNavigationTarget = (anchor: HTMLAnchorElement): string | null => {
   const raw = anchor.getAttribute('href');
 
   if (!raw || raw.startsWith('#') || isBareRelativeHref(raw)) {
@@ -38,4 +36,4 @@ export function getRawAnchorNavigationTarget(anchor: HTMLAnchorElement): string 
   }
 
   return raw;
-}
+};
