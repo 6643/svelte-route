@@ -9,12 +9,13 @@
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "lib": ["DOM", "ESNext"],
-    "types": ["node"]
+    "types": ["vitest/globals", "node"]
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.svelte",
     "tests/**/*.ts",
-    "tests/**/*.svelte"
+    "tests/**/*.svelte",
+    "vite.config.ts"
   ]
 }
