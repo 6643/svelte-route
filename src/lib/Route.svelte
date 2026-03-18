@@ -1,66 +1,43 @@
 <svelte:options runes={true} />
 
 <script lang="ts">
-  import { untrack } from 'svelte';
-
   import {
+    getCurrentSearch,
+    getMatchedRouteId,
     initRouteSystem,
-    routerState,
-    registerRoute
+    registerRoute,
+    subscribeRuntime
   } from './router.svelte.ts';
   import { decodeRouteProps } from './query.ts';
-  import type {
-    LazyRouteComponent,
-    RouteComponent,
-    RouteDecoder,
-    RouteDecoderMap,
-    RouteEntry,
-    SyncRouteComponent
-  } from './types.ts';
+  import type { RouteComponent, RouteDecoder, RouteDecoderMap, RouteEntry } from './types.ts';
 
   type RouteProps = {
     path: string;
     component: RouteComponent;
   } & Record<string, unknown>;
 
-  let { path, component, ...rest }: RouteProps = $props();
+  let props: RouteProps = $props();
 
   function isDecoder(value: unknown): value is RouteDecoder {
     return value === String || value === Number || value === Boolean || typeof value === 'function';
   }
 
-  function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
-    return !!value && (typeof value === 'object' || typeof value === 'function') && typeof (value as PromiseLike<unknown>).then === 'function';
+  function isLazyLoader(value: RouteComponent): boolean {
+    return value.length === 0;
   }
 
-  function isLazyLoader(value: RouteComponent): value is LazyRouteComponent {
-    return typeof value === 'function' && value.length === 0;
-  }
-
-  function validateRouteProps(input: RouteProps): { path: string; component: RouteComponent; decoders: RouteDecoderMap } {
-    if (typeof input.path !== 'string') {
+  function validateRouteProps(): { path: string; component: RouteComponent; decoders: RouteDecoderMap } {
+    if (typeof props.path !== 'string') {
       throw new Error('Route path must be a string');
     }
 
-    if (!('component' in input) || input.component == null) {
-      throw new Error('Route component is required');
-    }
-
-    if (isPromiseLike(input.component)) {
-      throw new Error('Invalid Route component');
-    }
-
-    if (typeof input.component === 'object') {
-      throw new Error('Invalid Route component');
-    }
-
-    if (typeof input.component !== 'function') {
+    if (typeof props.component !== 'function') {
       throw new Error('Invalid Route component');
     }
 
     const decoders = {} as RouteDecoderMap;
 
-    for (const key in input) {
+    for (const key in props) {
       if (key === 'path' || key === 'component') {
         continue;
       }
@@ -69,7 +46,7 @@
         throw new Error(`Unsupported Route prop: ${key}`);
       }
 
-      const decoder = input[key];
+      const decoder = props[key];
       if (!isDecoder(decoder)) {
         throw new Error(`Invalid decoder for Route prop: ${key}`);
       }
@@ -77,17 +54,12 @@
       decoders[key as keyof RouteDecoderMap] = decoder;
     }
 
-    return {
-      path: input.path,
-      component: input.component,
-      decoders
-    };
+    return { path: props.path, component: props.component, decoders };
   }
 
-  const config = untrack(() => {
-    initRouteSystem();
-    return validateRouteProps({ path, component, ...rest });
-  });
+  initRouteSystem();
+
+  const config = validateRouteProps();
   const initialComponent = config.component;
   const entry: RouteEntry = {
     id: Symbol(config.path),
@@ -95,46 +67,43 @@
     component: config.component,
     decoders: config.decoders
   };
-
-  let resolvedComponent = $state<SyncRouteComponent | null>(
-    isLazyLoader(initialComponent) ? null : initialComponent
-  );
+  const unregister = registerRoute(entry);
+  let runtimeVersion = $state(0);
+  let resolvedComponent = $state<RouteComponent | null>(isLazyLoader(initialComponent) ? null : initialComponent);
   let loadError = $state<unknown | null>(null);
 
   $effect(() => {
-    if (component !== initialComponent) {
+    if (props.component !== initialComponent) {
       throw new Error('Route component cannot change after mount');
     }
   });
 
   $effect(() => {
-    const unregister = untrack(() => registerRoute(entry));
+    const unsubscribe = subscribeRuntime(() => {
+      runtimeVersion += 1;
+    });
 
     return () => {
-      untrack(unregister);
+      unsubscribe();
     };
   });
 
-  const active = $derived.by(() => {
-    const pathname = routerState.currentPath.split('?')[0] || '/';
-    const matchedId =
-      routerState.entries.find((candidate: RouteEntry) => candidate.path === pathname)?.id ??
-      routerState.entries.find((candidate: RouteEntry) => candidate.path === '*')?.id ??
-      null;
+  $effect(() => {
+    return unregister;
+  });
 
-    return matchedId === entry.id;
+  const active = $derived.by(() => {
+    runtimeVersion;
+    return getMatchedRouteId() === entry.id;
   });
 
   const decodedProps = $derived.by(() => {
-    if (!active) {
-      return {};
-    }
-
-    const search = routerState.currentPath.includes('?') ? `?${routerState.currentPath.split('?').slice(1).join('?')}` : '';
-    return decodeRouteProps(search, entry.decoders);
+    runtimeVersion;
+    return active ? decodeRouteProps(getCurrentSearch(), entry.decoders) : {};
   });
 
   $effect(() => {
+    runtimeVersion;
     loadError = null;
 
     if (!active) {
@@ -147,12 +116,13 @@
       return;
     }
 
-    const loader = initialComponent as LazyRouteComponent;
     resolvedComponent = null;
     let cancelled = false;
 
+    const loader = initialComponent as () => Promise<{ default: RouteComponent }>;
+
     loader()
-      .then((module: { default: SyncRouteComponent }) => {
+      .then((module: { default: RouteComponent }) => {
         if (!cancelled) {
           resolvedComponent = module.default;
         }
