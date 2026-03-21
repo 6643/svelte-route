@@ -8,7 +8,7 @@ export type RouteDecoder<T = unknown> =
 
 export type RouteDecoderMap = Record<`$${string}`, RouteDecoder>;
 
-export type SyncRouteComponent = Component;
+export type SyncRouteComponent = Component<any>;
 
 export type LazyRouteComponent = () => Promise<{ default: SyncRouteComponent }>;
 

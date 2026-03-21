@@ -16,24 +16,28 @@
     component: RouteComponent;
   } & Record<string, unknown>;
 
-  let props: RouteProps = $props();
+  let props = $props();
 
-  const isDecoder = (value: unknown): value is RouteDecoder => value === String || value === Number || value === Boolean || typeof value === 'function';
+  const isDecoder = ((value) => value === String || value === Number || value === Boolean || typeof value === 'function') as (
+    value: unknown,
+  ) => value is RouteDecoder;
 
-  const isLazyLoader = (value: RouteComponent): boolean => value.length === 0;
+  const isLazyLoader = ((value) => value.length === 0) as (value: RouteComponent) => boolean;
 
   const validateRouteProps = (): { path: string; component: RouteComponent; decoders: RouteDecoderMap } => {
-    if (typeof props.path !== 'string') {
+    const routeProps = props as RouteProps;
+
+    if (typeof routeProps.path !== 'string') {
       throw new Error('Route path must be a string');
     }
 
-    if (typeof props.component !== 'function') {
+    if (typeof routeProps.component !== 'function') {
       throw new Error('Invalid Route component');
     }
 
     const decoders = {} as RouteDecoderMap;
 
-    for (const key in props) {
+    for (const key in routeProps) {
       if (key === 'path' || key === 'component') {
         continue;
       }
@@ -42,7 +46,7 @@
         throw new Error(`Unsupported Route prop: ${key}`);
       }
 
-      const decoder = props[key];
+      const decoder = routeProps[key];
       if (!isDecoder(decoder)) {
         throw new Error(`Invalid decoder for Route prop: ${key}`);
       }
@@ -50,19 +54,19 @@
       decoders[key as keyof RouteDecoderMap] = decoder;
     }
 
-    return { path: props.path, component: props.component, decoders };
+    return { path: routeProps.path, component: routeProps.component, decoders };
   };
 
   initRouteSystem();
 
   const config = validateRouteProps();
   const initialComponent = config.component;
-  const entry: RouteEntry = {
+  const entry = {
     id: Symbol(config.path),
     path: config.path,
     component: config.component,
     decoders: config.decoders
-  };
+  } satisfies RouteEntry;
   const unregister = registerRoute(entry);
   let runtimeVersion = $state(0);
   let resolvedComponent = $state<RouteComponent | null>(isLazyLoader(initialComponent) ? null : initialComponent);
@@ -118,12 +122,12 @@
     const loader = initialComponent as () => Promise<{ default: RouteComponent }>;
 
     loader()
-      .then((module: { default: RouteComponent }) => {
+      .then((module) => {
         if (!cancelled) {
           resolvedComponent = module.default;
         }
       })
-      .catch((error: unknown) => {
+      .catch((error) => {
         if (!cancelled) {
           loadError = error;
         }

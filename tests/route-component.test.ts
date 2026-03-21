@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 // @ts-expect-error test-only client entry under Bun-only setup
 import { mount, unmount } from '../node_modules/svelte/src/internal/client/render.js';
 // @ts-expect-error test-only client entry under Bun-only setup
-import { flushSync } from '../node_modules/svelte/src/internal/client/reactivity/batch.js';
+import { flush_sync as flushSync } from '../node_modules/svelte/src/internal/client/runtime.js';
 
 import { __resetRouteSystemForTest, routePush } from '../src/lib/router.svelte.ts';
 import { loadCompiledComponent } from './helpers/compile-svelte.ts';

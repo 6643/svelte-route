@@ -1,6 +1,10 @@
 {
     "name": "svelte-route",
     "private": true,
+    "exports": {
+        ".": "./src/lib/index.ts",
+        "./package.json": "./package.json"
+    },
     "type": "module",
     "scripts": {
         "test": "bun test",
@@ -9,8 +13,12 @@
     "devDependencies": {
         "@types/node": "latest",
         "jsdom": "latest",
-        "svelte": "latest",
+        "svelte": "next",
         "svelte-check": "latest",
+        "typescript": "latest"
+    },
+    "peerDependencies": {
+        "svelte": "next",
         "typescript": "latest"
     }
 }
