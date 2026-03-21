@@ -166,6 +166,40 @@ describe('Route component', () => {
     expect(target.querySelector('[data-testid="sync-b"]')?.textContent).toBe('{}');
   });
 
+  test('popstate changes rerender the matched route', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/a');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const SyncB = await loadCompiledComponent('./tests/fixtures/SyncB.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    mount(Route, { target, props: { path: '/a', component: SyncA } });
+    mounted = mount(Route, { target, props: { path: '/b', component: SyncB } });
+
+    flushSync();
+    expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{}');
+
+    history.replaceState(
+      {
+        __route: {
+          index: 1,
+          stack: ['/a', '/b']
+        }
+      },
+      '',
+      '/b'
+    );
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+    flushSync();
+
+    expect(target.querySelector('[data-testid="sync-b"]')?.textContent).toBe('{}');
+    expect(target.querySelector('[data-testid="sync-a"]')).toBeNull();
+  });
+
   test('throws for invalid extra props', async () => {
     const Route = await loadCompiledComponent('./src/lib/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');

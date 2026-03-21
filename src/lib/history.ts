@@ -1,20 +1,28 @@
 import type { RouteHistoryState } from './types.ts';
 
 export const normalizeHistoryState = (state: unknown, currentPath: string): RouteHistoryState => {
-  const base = state && typeof state === 'object' ? { ...(state as Record<string, unknown>) } : {};
-  const route = base.__route;
+  if (state && typeof state === 'object') {
+    const route = (state as Record<string, unknown>).__route;
 
-  if (
-    route &&
-    typeof route === 'object' &&
-    typeof (route as { index?: unknown }).index === 'number' &&
-    Array.isArray((route as { stack?: unknown }).stack)
-  ) {
-    return base as RouteHistoryState;
+    if (
+      route &&
+      typeof route === 'object' &&
+      typeof (route as { index?: unknown }).index === 'number' &&
+      Array.isArray((route as { stack?: unknown }).stack)
+    ) {
+      return state as RouteHistoryState;
+    }
+
+    return {
+      ...(state as Record<string, unknown>),
+      __route: {
+        index: 0,
+        stack: [currentPath]
+      }
+    };
   }
 
   return {
-    ...base,
     __route: {
       index: 0,
       stack: [currentPath]

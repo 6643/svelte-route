@@ -3,6 +3,9 @@ import { JSDOM } from 'jsdom';
 
 import {
   __resetRouteSystemForTest,
+  getMatchedRouteId,
+  initRouteSystem,
+  registerRoute,
   routeBackPath,
   routeCurrentPath,
   routeForwardPath,
@@ -63,6 +66,26 @@ describe('router runtime', () => {
     expect(routeForwardPath()).toBeNull();
   });
 
+  test('popstate synchronizes runtime path and history accessors', () => {
+    routePush('/b');
+
+    history.replaceState(
+      {
+        __route: {
+          index: 0,
+          stack: ['/a', '/b']
+        }
+      },
+      '',
+      '/a'
+    );
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBe('/b');
+  });
+
   test('same path no-op keeps back path unchanged', () => {
     routePush('/a');
 
@@ -86,5 +109,53 @@ describe('router runtime', () => {
     expect(() => routeForwardPath()).toThrow(/browser environment/);
     expect(() => routePush('/b')).toThrow(/browser environment/);
     expect(() => routeReplace('/b')).toThrow(/browser environment/);
+  });
+
+  test('initialization preserves the current hash fragment', () => {
+    cleanupDom();
+    cleanupDom = installDom('/a?id=1#frag');
+    __resetRouteSystemForTest();
+
+    expect(window.location.hash).toBe('#frag');
+    expect(routeCurrentPath()).toBe('/a?id=1');
+    expect(window.location.hash).toBe('#frag');
+    expect(window.location.href).toBe('https://app.test/a?id=1#frag');
+  });
+
+  test('reuses the matched route lookup until runtime state changes', () => {
+    initRouteSystem();
+
+    let reads = 0;
+    const firstId = Symbol('/a');
+    const secondId = Symbol('/b');
+
+    const unregisterFirst = registerRoute({
+      id: firstId,
+      get path() {
+        reads += 1;
+        return '/a';
+      },
+      component: (() => null) as never,
+      decoders: {}
+    });
+
+    const unregisterSecond = registerRoute({
+      id: secondId,
+      get path() {
+        reads += 1;
+        return '/b';
+      },
+      component: (() => null) as never,
+      decoders: {}
+    });
+
+    expect(getMatchedRouteId()).toBe(firstId);
+    const firstReadCount = reads;
+
+    expect(getMatchedRouteId()).toBe(firstId);
+    expect(reads).toBe(firstReadCount);
+
+    unregisterSecond();
+    unregisterFirst();
   });
 });

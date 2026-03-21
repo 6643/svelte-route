@@ -13,6 +13,10 @@ export const normalizeNavigationTarget = (target: string, currentPath: string, o
 
   if (target.startsWith('/')) {
     const url = new URL(target, origin);
+    if (url.origin !== origin) {
+      throw new Error(`Cross-origin navigation is not supported: ${target}`);
+    }
+
     return url.search ? `${url.pathname}${url.search}` : url.pathname;
   }
 

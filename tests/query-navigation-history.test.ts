@@ -91,6 +91,10 @@ describe('navigation', () => {
     expect(normalizeNavigationTarget('/user?id=1#hash', '/', 'https://app.test')).toBe('/user?id=1');
   });
 
+  test('rejects protocol-relative cross-origin urls', () => {
+    expect(() => normalizeNavigationTarget('//elsewhere.test/a', '/', 'https://app.test')).toThrow(/Cross-origin/);
+  });
+
   test('treats bare relative paths as invalid', () => {
     expect(() => normalizeNavigationTarget('foo', '/', 'https://app.test')).toThrow(/Relative navigation/);
     expect(() => normalizeNavigationTarget('./foo', '/', 'https://app.test')).toThrow(/Relative navigation/);

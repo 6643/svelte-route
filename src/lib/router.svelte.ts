@@ -12,6 +12,15 @@ let historyState: RouteHistoryState = {
 };
 let entries: RouteEntry[] = [];
 const listeners = new Set<() => void>();
+let matchedRouteId: symbol | null = null;
+let matchDirty = true;
+let runtimeWindow: Window | null = null;
+
+const invalidateMatchedRoute = (): void => {
+  matchDirty = true;
+};
+
+const readCurrentUrl = (): string => `${window.location.pathname}${window.location.search}${window.location.hash}` || '/';
 
 const notify = (): void => {
   for (const listener of listeners) {
@@ -32,6 +41,42 @@ const ensureBrowser = (): void => {
 
 const readCurrentPath = (): string => `${window.location.pathname}${window.location.search}` || '/';
 
+const syncRuntimeFromBrowser = (nextHistoryState: unknown): boolean => {
+  const nextPath = readCurrentPath();
+  const normalizedState = normalizeHistoryState(nextHistoryState, nextPath);
+  const pathChanged = nextPath !== currentPath;
+
+  currentPath = nextPath;
+  historyState = normalizedState;
+
+  if (pathChanged) {
+    invalidateMatchedRoute();
+  }
+
+  return nextHistoryState !== normalizedState;
+};
+
+const handlePopState = (event: PopStateEvent): void => {
+  ensureBrowser();
+
+  const repaired = syncRuntimeFromBrowser(event.state);
+  if (repaired) {
+    history.replaceState(historyState, '', readCurrentUrl());
+  }
+
+  notify();
+};
+
+const bindRuntimeWindow = (): void => {
+  if (runtimeWindow === window) {
+    return;
+  }
+
+  runtimeWindow?.removeEventListener('popstate', handlePopState);
+  window.addEventListener('popstate', handlePopState);
+  runtimeWindow = window;
+};
+
 const ensureRuntime = (): void => {
   ensureBrowser();
 
@@ -39,9 +84,12 @@ const ensureRuntime = (): void => {
     return;
   }
 
-  currentPath = readCurrentPath();
-  historyState = normalizeHistoryState(history.state, currentPath);
-  history.replaceState(historyState, '', currentPath);
+  const repaired = syncRuntimeFromBrowser(history.state);
+  if (repaired) {
+    history.replaceState(historyState, '', readCurrentUrl());
+  }
+
+  bindRuntimeWindow();
   initialized = true;
 };
 
@@ -67,6 +115,7 @@ const navigate = (kind: 'push' | 'replace', target: string): void => {
 
   currentPath = nextPath;
   historyState = nextState;
+  invalidateMatchedRoute();
   notify();
 };
 
@@ -81,18 +130,41 @@ export const subscribeRuntime = (update: () => void): (() => void) => {
 export const registerRoute = (entry: RouteEntry): (() => void) => {
   ensureRuntime();
   entries = [...entries, entry];
+  invalidateMatchedRoute();
   notify();
 
   return () => {
     entries = entries.filter((candidate) => candidate.id !== entry.id);
+    invalidateMatchedRoute();
     notify();
   };
 };
 
 export const getMatchedRouteId = (): symbol | null => {
-  const pathname = currentPath.split('?')[0] || '/';
+  if (!matchDirty) {
+    return matchedRouteId;
+  }
 
-  return entries.find((entry) => entry.path === pathname)?.id ?? entries.find((entry) => entry.path === '*')?.id ?? null;
+  const pathname = currentPath.split('?')[0] || '/';
+  let fallbackId: symbol | null = null;
+
+  for (const entry of entries) {
+    const entryPath = entry.path;
+
+    if (entryPath === pathname) {
+      matchedRouteId = entry.id;
+      matchDirty = false;
+      return matchedRouteId;
+    }
+
+    if (fallbackId == null && entryPath === '*') {
+      fallbackId = entry.id;
+    }
+  }
+
+  matchedRouteId = fallbackId;
+  matchDirty = false;
+  return matchedRouteId;
 };
 
 export const getCurrentSearch = (): string => currentPath.includes('?') ? `?${currentPath.split('?').slice(1).join('?')}` : '';
@@ -121,10 +193,14 @@ export const routeForwardPath = (): string | null => {
 };
 
 export const __resetRouteSystemForTest = (): void => {
+  runtimeWindow?.removeEventListener('popstate', handlePopState);
+  runtimeWindow = null;
   initialized = false;
   currentPath = '/';
   entries = [];
   listeners.clear();
+  matchedRouteId = null;
+  matchDirty = true;
   historyState = {
     __route: {
       index: 0,

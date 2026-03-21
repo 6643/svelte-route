@@ -1,15 +1,15 @@
 # svelte-route
 
-A lightweight SPA router for Svelte projects.
+A lightweight Bun-only SPA router for Svelte projects.
 
 ## Features
 
-- Bun-only workflow
-- Svelte only
+- Standalone package with a Bun-first workflow
 - Declarative `<Route>` API
-- Programmatic navigation helpers
+- Exact path matching with `*` fallback routes
 - Query decoder props with `$name` syntax
-- Wildcard fallback routes
+- Programmatic navigation helpers
+- Browser back/forward synchronization
 - Lazy-loaded route components
 
 ## Install
@@ -18,7 +18,7 @@ A lightweight SPA router for Svelte projects.
 bun add svelte-route
 ```
 
-## Basic Usage
+## Quick Start
 
 ```svelte
 <script lang="ts">
@@ -34,28 +34,38 @@ bun add svelte-route
 <Route path="*" component={NotFound} />
 ```
 
-## Programmatic Navigation
+For `/user?id=7`, the `User` component receives:
 
 ```ts
-import {
-  routeBackPath,
-  routeCurrentPath,
-  routeForwardPath,
-  routePush,
-  routeReplace
-} from 'svelte-route';
-
-routePush('/user?id=1');
-routeReplace('/login');
-
-const current = routeCurrentPath();
-const back = routeBackPath();
-const forward = routeForwardPath();
+{
+  id: 7
+}
 ```
+
+## Route API
+
+`Route` accepts:
+
+- `path`: exact pathname to match, or `*` for a fallback route
+- `component`: a Svelte component or a lazy loader
+- `$name`: an optional query decoder that maps `?name=value` to a prop named `name`
+
+Matching behavior:
+
+- The first exact `path` match wins
+- If no exact route matches, the first `path="*"` route wins
+- Query strings do not affect route matching
+- Route configuration is treated as immutable after mount
 
 ## Query Decoder Props
 
-Use `$name` props to decode query string values before they reach the route component.
+Built-in decoders:
+
+- `String`
+- `Number`
+- `Boolean`
+
+Custom decoders are also supported:
 
 ```svelte
 <script lang="ts">
@@ -85,6 +95,54 @@ For `/search?page=2&enabled=true&tags=red,blue`, `Search` receives:
 }
 ```
 
+Decoder behavior:
+
+- Missing query keys become `undefined`
+- Invalid `Number` and `Boolean` values become `undefined`
+- Duplicate query keys use the first value
+- Exceptions thrown by custom decoders bubble up
+
+## Navigation Helpers
+
+```ts
+import {
+  routeBackPath,
+  routeCurrentPath,
+  routeForwardPath,
+  routePush,
+  routeReplace
+} from 'svelte-route';
+
+routePush('/user?id=1');
+routePush('?page=2');
+routeReplace('https://app.test/user?id=3');
+
+const current = routeCurrentPath();
+const back = routeBackPath();
+const forward = routeForwardPath();
+```
+
+Supported navigation inputs:
+
+- Absolute app paths such as `/user?id=1`
+- Query-only updates such as `?page=2`
+- Same-origin absolute URLs
+
+Navigation behavior:
+
+- `routePush()` appends a new history entry
+- `routeReplace()` rewrites the current history entry
+- Navigating to the current normalized path is a no-op
+- Browser back/forward keeps route rendering and helper outputs in sync
+
+Invalid navigation inputs throw:
+
+- `foo`
+- `./foo`
+- `../foo`
+- `//elsewhere.test/path`
+- any absolute cross-origin URL
+
 ## Lazy Routes
 
 `component` also accepts a lazy loader with the shape `() => import('./Component.svelte')`.
@@ -99,33 +157,20 @@ For `/search?page=2&enabled=true&tags=red,blue`, `Search` receives:
 <Route path="/settings" component={loadSettings} />
 ```
 
-Behavior:
+Lazy route behavior:
 
 - No default loading UI is rendered while the loader is pending
 - The resolved module's `default` export is rendered
 - Loader errors are thrown upward
 
-## Supported Navigation Inputs
+## Limits
 
-```ts
-routePush('/user?id=1');
-routePush('?page=2');
-routeReplace('https://your-app.test/user?id=1');
-```
-
-Invalid inputs throw:
-
-- `foo`
-- `./foo`
-- `../foo`
-- cross-origin URLs
-
-## Notes
-
-- This package is for client-side SPA routing only
+- Client-side SPA routing only
+- Browser environment required
 - Dynamic route params are not included
 - Nested routes are not included
-- `component` is treated as immutable route configuration after mount
+- Anchor interception is not included
+- Hash fragments are not part of route matching semantics
 
 ## Development
 
