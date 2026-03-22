@@ -122,6 +122,48 @@ describe('router runtime', () => {
     expect(window.location.href).toBe('https://app.test/a?id=1#frag');
   });
 
+  test('query only navigation preserves the current hash fragment', () => {
+    cleanupDom();
+    cleanupDom = installDom('/a?id=1#frag');
+    __resetRouteSystemForTest();
+
+    routePush('?id=2');
+    expect(routeCurrentPath()).toBe('/a?id=2');
+    expect(window.location.hash).toBe('#frag');
+    expect(window.location.href).toBe('https://app.test/a?id=2#frag');
+
+    routeReplace('?id=3');
+    expect(routeCurrentPath()).toBe('/a?id=3');
+    expect(window.location.hash).toBe('#frag');
+    expect(window.location.href).toBe('https://app.test/a?id=3#frag');
+  });
+
+  test('popstate repairs malformed router managed history state', () => {
+    history.replaceState(
+      {
+        foo: 1,
+        __route: {
+          index: -1,
+          stack: [42]
+        }
+      },
+      '',
+      '/a'
+    );
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect(history.state).toEqual({
+      foo: 1,
+      __route: {
+        index: 0,
+        stack: ['/a']
+      }
+    });
+  });
+
   test('reuses the matched route lookup until runtime state changes', () => {
     initRouteSystem();
 

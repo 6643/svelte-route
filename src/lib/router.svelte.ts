@@ -16,7 +16,7 @@ let matchedRouteId: symbol | null = null;
 let matchDirty = true;
 let runtimeWindow: Window | null = null;
 
-const invalidateMatchedRoute = (): void => {
+const invalidateRouteMatch = (): void => {
   matchDirty = true;
 };
 
@@ -41,6 +41,8 @@ const ensureBrowser = (): void => {
 
 const readCurrentPath = (): string => `${window.location.pathname}${window.location.search}` || '/';
 
+const getCurrentPathname = (): string => currentPath.split('?')[0] || '/';
+
 const syncRuntimeFromBrowser = (nextHistoryState: unknown): boolean => {
   const nextPath = readCurrentPath();
   const normalizedState = normalizeHistoryState(nextHistoryState, nextPath);
@@ -50,7 +52,7 @@ const syncRuntimeFromBrowser = (nextHistoryState: unknown): boolean => {
   historyState = normalizedState;
 
   if (pathChanged) {
-    invalidateMatchedRoute();
+    invalidateRouteMatch();
   }
 
   return nextHistoryState !== normalizedState;
@@ -101,6 +103,7 @@ const navigate = (kind: 'push' | 'replace', target: string): void => {
   ensureRuntime();
 
   const nextPath = normalizeNavigationTarget(target, currentPath, window.location.origin);
+  const nextUrl = target === '?' || target.startsWith('?') ? `${nextPath}${window.location.hash}` : nextPath;
   if (nextPath === currentPath) {
     return;
   }
@@ -108,14 +111,14 @@ const navigate = (kind: 'push' | 'replace', target: string): void => {
   const nextState = kind === 'push' ? buildPushState(historyState, nextPath) : buildReplaceState(historyState, nextPath);
 
   if (kind === 'push') {
-    history.pushState(nextState, '', nextPath);
+    history.pushState(nextState, '', nextUrl);
   } else {
-    history.replaceState(nextState, '', nextPath);
+    history.replaceState(nextState, '', nextUrl);
   }
 
   currentPath = nextPath;
   historyState = nextState;
-  invalidateMatchedRoute();
+  invalidateRouteMatch();
   notify();
 };
 
@@ -130,12 +133,12 @@ export const subscribeRuntime = (update: () => void): (() => void) => {
 export const registerRoute = (entry: RouteEntry): (() => void) => {
   ensureRuntime();
   entries = [...entries, entry];
-  invalidateMatchedRoute();
+  invalidateRouteMatch();
   notify();
 
   return () => {
     entries = entries.filter((candidate) => candidate.id !== entry.id);
-    invalidateMatchedRoute();
+    invalidateRouteMatch();
     notify();
   };
 };
@@ -145,10 +148,11 @@ export const getMatchedRouteId = (): symbol | null => {
     return matchedRouteId;
   }
 
-  const pathname = currentPath.split('?')[0] || '/';
+  const pathname = getCurrentPathname();
   let fallbackId: symbol | null = null;
 
-  for (const entry of entries) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
     const entryPath = entry.path;
 
     if (entryPath === pathname) {

@@ -119,6 +119,27 @@ describe('history state', () => {
     });
   });
 
+  test('repairs malformed router managed history state and preserves foreign fields', () => {
+    expect(
+      normalizeHistoryState(
+        {
+          foo: 1,
+          __route: {
+            index: -1,
+            stack: [42]
+          }
+        },
+        '/a'
+      )
+    ).toEqual({
+      foo: 1,
+      __route: {
+        index: 0,
+        stack: ['/a']
+      }
+    });
+  });
+
   test('builds push state by truncating forward history', () => {
     expect(
       buildPushState(

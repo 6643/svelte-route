@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { JSDOM } from 'jsdom';
 // @ts-expect-error test-only client entry under Bun-only setup
-import { mount, unmount } from '../node_modules/svelte/src/internal/client/render.js';
+import { mount as svelteMount, unmount as svelteUnmount } from '../node_modules/svelte/src/internal/client/render.js';
 // @ts-expect-error test-only client entry under Bun-only setup
 import { flush_sync as flushSync } from '../node_modules/svelte/src/internal/client/runtime.js';
 
@@ -11,6 +11,14 @@ import { lifecycle, resetLifecycle } from './fixtures/lifecycle.ts';
 
 let cleanupDom = () => {};
 let mounted: any = null;
+let mountedInstances: any[] = [];
+
+const mount = (component: any, options: any) => {
+  const instance = svelteMount(component, options);
+  mounted = instance;
+  mountedInstances.push(instance);
+  return instance;
+};
 
 const installDom = (path: string) => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
@@ -64,11 +72,12 @@ beforeEach(() => {
   __resetRouteSystemForTest();
   resetLifecycle();
   mounted = null;
+  mountedInstances = [];
 });
 
 afterEach(() => {
-  if (mounted) {
-    void unmount(mounted);
+  for (const instance of mountedInstances.reverse()) {
+    void svelteUnmount(instance);
   }
 
   __resetRouteSystemForTest();
@@ -95,7 +104,7 @@ describe('Route component', () => {
     expect(target.querySelector('[data-testid="not-found"]')?.textContent).toBe('not-found');
   });
 
-  test('renders the first exact route match and injects decoded query props', async () => {
+  test('renders an exact route match and injects decoded query props', async () => {
     cleanupDom();
     cleanupDom = installDom('/user?id=7');
     __resetRouteSystemForTest();
@@ -111,6 +120,58 @@ describe('Route component', () => {
     flushSync();
 
     expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{"id":7}');
+  });
+
+  test('later duplicate paths override earlier routes', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/same');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const SyncB = await loadCompiledComponent('./tests/fixtures/SyncB.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    mount(Route, { target, props: { path: '/same', component: SyncA } });
+    mounted = mount(Route, { target, props: { path: '/same', component: SyncB } });
+
+    flushSync();
+
+    expect(target.querySelector('[data-testid="sync-b"]')?.textContent).toBe('{}');
+    expect(target.querySelector('[data-testid="sync-a"]')).toBeNull();
+  });
+
+  test('later wildcard routes override earlier routes when no exact path matches', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/missing');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const SyncB = await loadCompiledComponent('./tests/fixtures/SyncB.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    mount(Route, {
+      target,
+      props: {
+        path: '*',
+        component: SyncA
+      }
+    });
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '*',
+        component: SyncB
+      }
+    });
+
+    flushSync();
+
+    expect(target.querySelector('[data-testid="sync-b"]')?.textContent).toBe('{}');
+    expect(target.querySelector('[data-testid="sync-a"]')).toBeNull();
   });
 
   test('query only navigation updates props without remounting', async () => {
@@ -262,6 +323,44 @@ describe('Route component', () => {
     }).toThrow(/component/i);
   });
 
+  test('throws when path changes after mount', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/a');
+    __resetRouteSystemForTest();
+
+    const MutableRoutePathHarness = await loadCompiledComponent('./tests/fixtures/MutableRoutePathHarness.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    mounted = mount(MutableRoutePathHarness, { target });
+    flushSync();
+
+    expect(() => {
+      flushSync(() => {
+        mounted?.swap();
+      });
+    }).toThrow(/path/i);
+  });
+
+  test('throws when decoder changes after mount', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/decoder?id=1');
+    __resetRouteSystemForTest();
+
+    const MutableRouteDecoderHarness = await loadCompiledComponent('./tests/fixtures/MutableRouteDecoderHarness.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    mounted = mount(MutableRouteDecoderHarness, { target });
+    flushSync();
+
+    expect(() => {
+      flushSync(() => {
+        mounted?.swap();
+      });
+    }).toThrow(/decoder/i);
+  });
+
   test('renders lazy routes without default loading dom', async () => {
     cleanupDom();
     cleanupDom = installDom('/lazy?id=9');
@@ -297,5 +396,88 @@ describe('Route component', () => {
     flushSync();
 
     expect(target.querySelector('[data-testid="lazy-target"]')?.textContent).toBe('{"id":9}');
+  });
+
+  test('query only navigation keeps lazy routes mounted', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/lazy?id=1');
+    __resetRouteSystemForTest();
+    resetLifecycle();
+
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    const Lazy = () => Promise.resolve({ default: SyncA });
+
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '/lazy',
+        component: Lazy,
+        $id: Number
+      }
+    });
+
+    flushSync();
+    await Promise.resolve();
+    await Promise.resolve();
+    flushSync();
+    expect(lifecycle.syncAMounts).toBe(1);
+    expect(lifecycle.syncADestroys).toBe(0);
+
+    routePush('?id=2');
+    flushSync();
+    await Promise.resolve();
+    await Promise.resolve();
+    flushSync();
+
+    expect(lifecycle.syncAMounts).toBe(1);
+    expect(lifecycle.syncADestroys).toBe(0);
+    expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{"id":2}');
+  });
+
+  test('query only navigation does not restart a pending lazy load', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/lazy?id=1');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    let loaderCalls = 0;
+    let resolveLoader: ((value: { default: unknown }) => void) | undefined;
+    const Lazy = () => {
+      loaderCalls += 1;
+      return new Promise<{ default: unknown }>((resolve) => {
+        resolveLoader = resolve;
+      });
+    };
+
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '/lazy',
+        component: Lazy,
+        $id: Number
+      }
+    });
+
+    flushSync();
+    expect(loaderCalls).toBe(1);
+
+    routePush('?id=2');
+    flushSync();
+    expect(loaderCalls).toBe(1);
+
+    resolveLoader?.({ default: SyncA });
+    await Promise.resolve();
+    await Promise.resolve();
+    flushSync();
+
+    expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{"id":2}');
   });
 });

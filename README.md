@@ -15,8 +15,11 @@ A lightweight Bun-only SPA router for Svelte projects.
 ## Install
 
 ```bash
-bun add svelte-route
+bun add ../svelte-route
 ```
+
+This repository is currently configured as a private package.
+Use a local path or workspace dependency, then import from `svelte-route` as usual.
 
 ## Quick Start
 
@@ -52,8 +55,8 @@ For `/user?id=7`, the `User` component receives:
 
 Matching behavior:
 
-- The first exact `path` match wins
-- If no exact route matches, the first `path="*"` route wins
+- When multiple routes share the same exact `path`, the last registered route wins
+- If no exact route matches, the last registered `path="*"` route wins
 - Query strings do not affect route matching
 - Route configuration is treated as immutable after mount
 
@@ -134,6 +137,7 @@ Navigation behavior:
 - `routeReplace()` rewrites the current history entry
 - Navigating to the current normalized path is a no-op
 - Browser back/forward keeps route rendering and helper outputs in sync
+- Query-only updates preserve the current hash fragment
 
 Invalid navigation inputs throw:
 
@@ -170,7 +174,7 @@ Lazy route behavior:
 - Dynamic route params are not included
 - Nested routes are not included
 - Anchor interception is not included
-- Hash fragments are not part of route matching semantics
+- Hash fragments are not part of route matching semantics, and hash fragments passed in navigation targets are ignored
 
 ## Development
 

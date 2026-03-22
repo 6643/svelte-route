@@ -67,22 +67,39 @@
     component: config.component,
     decoders: config.decoders
   } satisfies RouteEntry;
-  const unregister = registerRoute(entry);
   let runtimeVersion = $state(0);
+  const unsubscribe = subscribeRuntime(() => {
+    runtimeVersion += 1;
+  });
+  const unregister = registerRoute(entry);
   let resolvedComponent = $state<RouteComponent | null>(isLazyLoader(initialComponent) ? null : initialComponent);
   let loadError = $state<unknown | null>(null);
 
   $effect(() => {
-    if (props.component !== initialComponent) {
+    const nextConfig = validateRouteProps();
+    const nextDecoderKeys = Object.keys(nextConfig.decoders);
+    const initialDecoderKeys = Object.keys(config.decoders);
+
+    if (nextConfig.path !== config.path) {
+      throw new Error('Route path cannot change after mount');
+    }
+
+    if (nextConfig.component !== initialComponent) {
       throw new Error('Route component cannot change after mount');
+    }
+
+    if (nextDecoderKeys.length !== initialDecoderKeys.length) {
+      throw new Error('Route decoders cannot change after mount');
+    }
+
+    for (const key of nextDecoderKeys) {
+      if (nextConfig.decoders[key as keyof RouteDecoderMap] !== config.decoders[key as keyof RouteDecoderMap]) {
+        throw new Error('Route decoders cannot change after mount');
+      }
     }
   });
 
   $effect(() => {
-    const unsubscribe = subscribeRuntime(() => {
-      runtimeVersion += 1;
-    });
-
     return () => {
       unsubscribe();
     };
@@ -103,11 +120,13 @@
   });
 
   $effect(() => {
-    runtimeVersion;
     loadError = null;
 
     if (!active) {
-      resolvedComponent = isLazyLoader(initialComponent) ? null : initialComponent;
+      if (!isLazyLoader(initialComponent)) {
+        resolvedComponent = initialComponent;
+      }
+
       return;
     }
 
@@ -116,7 +135,10 @@
       return;
     }
 
-    resolvedComponent = null;
+    if (resolvedComponent) {
+      return;
+    }
+
     let cancelled = false;
 
     const loader = initialComponent as () => Promise<{ default: RouteComponent }>;

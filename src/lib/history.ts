@@ -1,32 +1,55 @@
 import type { RouteHistoryState } from './types.ts';
 
+const buildInitialRouteState = (currentPath: string): RouteHistoryState['__route'] => ({
+  index: 0,
+  stack: [currentPath]
+});
+
+const isManagedStackEntry = (value: unknown): value is string => typeof value === 'string' && value.startsWith('/');
+
+const isValidManagedRouteState = (route: unknown, currentPath: string): route is RouteHistoryState['__route'] => {
+  if (!route || typeof route !== 'object') {
+    return false;
+  }
+
+  const index = (route as { index?: unknown }).index;
+  const stack = (route as { stack?: unknown }).stack;
+
+  if (!Number.isInteger(index) || !Array.isArray(stack) || stack.length === 0) {
+    return false;
+  }
+
+  const routeIndex = index as number;
+  const routeStack = stack as unknown[];
+
+  if (routeIndex < 0 || routeIndex >= routeStack.length) {
+    return false;
+  }
+
+  if (!routeStack.every(isManagedStackEntry)) {
+    return false;
+  }
+
+  return routeStack[routeIndex] === currentPath;
+};
+
 export const normalizeHistoryState = (state: unknown, currentPath: string): RouteHistoryState => {
   if (state && typeof state === 'object') {
-    const route = (state as Record<string, unknown>).__route;
+    const output = state as Record<string, unknown>;
+    const route = output.__route;
 
-    if (
-      route &&
-      typeof route === 'object' &&
-      typeof (route as { index?: unknown }).index === 'number' &&
-      Array.isArray((route as { stack?: unknown }).stack)
-    ) {
+    if (isValidManagedRouteState(route, currentPath)) {
       return state as RouteHistoryState;
     }
 
     return {
-      ...(state as Record<string, unknown>),
-      __route: {
-        index: 0,
-        stack: [currentPath]
-      }
+      ...output,
+      __route: buildInitialRouteState(currentPath)
     };
   }
 
   return {
-    __route: {
-      index: 0,
-      stack: [currentPath]
-    }
+    __route: buildInitialRouteState(currentPath)
   };
 };
 
