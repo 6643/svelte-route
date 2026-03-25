@@ -9,6 +9,7 @@
     subscribeRuntime
   } from './router.svelte.ts';
   import { decodeRouteProps } from './query.ts';
+  import { isPromiseLike } from './route-validation.ts';
   import type { RouteComponent, RouteDecoder, RouteDecoderMap, RouteEntry } from './types.ts';
 
   type RouteProps = {
@@ -21,8 +22,6 @@
   const isDecoder = ((value) => value === String || value === Number || value === Boolean || typeof value === 'function') as (
     value: unknown,
   ) => value is RouteDecoder;
-
-  const isLazyLoader = ((value) => value.length === 0) as (value: RouteComponent) => boolean;
 
   const validateRouteProps = (): { path: string; component: RouteComponent; decoders: RouteDecoderMap } => {
     const routeProps = props as RouteProps;
@@ -72,7 +71,8 @@
     runtimeVersion += 1;
   });
   const unregister = registerRoute(entry);
-  let resolvedComponent = $state<RouteComponent | null>(isLazyLoader(initialComponent) ? null : initialComponent);
+  let resolvedComponent = $state<RouteComponent | null>(null);
+  let lazyLoader = $state<(() => Promise<{ default: RouteComponent }>) | null>(null);
   let loadError = $state<unknown | null>(null);
 
   $effect(() => {
@@ -119,31 +119,49 @@
     return active ? decodeRouteProps(getCurrentSearch(), entry.decoders) : {};
   });
 
+  let lazyProbeSettled = false;
+
   $effect(() => {
     loadError = null;
 
     if (!active) {
-      if (!isLazyLoader(initialComponent)) {
-        resolvedComponent = initialComponent;
+      if (!lazyLoader) {
+        resolvedComponent = null;
       }
 
       return;
     }
 
-    if (!isLazyLoader(initialComponent)) {
+    if (resolvedComponent || lazyLoader || lazyProbeSettled) {
+      return;
+    }
+
+    const candidate = initialComponent as (...args: unknown[]) => unknown;
+
+    if (candidate.length !== 0) {
       resolvedComponent = initialComponent;
       return;
     }
 
-    if (resolvedComponent) {
+    const probe = candidate();
+
+    if (!isPromiseLike(probe)) {
+      loadError = new Error('Lazy route component must be a zero-argument function that returns a promise');
+      return;
+    }
+
+    lazyLoader = () => probe as Promise<{ default: RouteComponent }>;
+    lazyProbeSettled = true;
+  });
+
+  $effect(() => {
+    if (!active || resolvedComponent || !lazyLoader) {
       return;
     }
 
     let cancelled = false;
 
-    const loader = initialComponent as () => Promise<{ default: RouteComponent }>;
-
-    loader()
+    lazyLoader()
       .then((module) => {
         if (!cancelled) {
           resolvedComponent = module.default;

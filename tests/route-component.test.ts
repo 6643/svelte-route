@@ -361,6 +361,30 @@ describe('Route component', () => {
     }).toThrow(/decoder/i);
   });
 
+  test('zero-argument functions that are not lazy loaders fail with a clear lazy component error', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/ambiguous');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    const Ambiguous = () => null;
+
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '/ambiguous',
+        component: Ambiguous
+      }
+    });
+
+    expect(() => {
+      flushSync();
+    }).toThrow(/lazy route component/i);
+  });
+
   test('renders lazy routes without default loading dom', async () => {
     cleanupDom();
     cleanupDom = installDom('/lazy?id=9');
