@@ -2,3 +2,5 @@
 node_modules/
 .worktrees/
 .bun-svelte-cache/
+
+.worktrees
