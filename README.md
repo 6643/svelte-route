@@ -105,6 +105,14 @@ Decoder behavior:
 - Duplicate query keys use the first value
 - Exceptions thrown by custom decoders bubble up
 
+Defensive decoder guidance:
+
+- Treat query input as untrusted data
+- Decoders receive the decoded string value or `null`
+- Prefer pure decoders with no side effects
+- Return `undefined` for invalid input when possible instead of throwing
+- Avoid expensive parsing work on unbounded input
+
 ## Navigation Helpers
 
 ```ts
@@ -166,6 +174,8 @@ Lazy route behavior:
 - No default loading UI is rendered while the loader is pending
 - The resolved module's `default` export is rendered
 - Loader errors are thrown upward
+- A lazy loader must be a zero-argument function that returns a promise
+- A zero-argument function that does not return a promise is treated as an invalid lazy route component and throws
 
 ## Limits
 

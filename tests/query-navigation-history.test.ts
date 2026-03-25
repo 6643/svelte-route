@@ -22,6 +22,31 @@ describe('query decoders', () => {
     expect(decodeRouteProps('?id=12', { $id: Number })).toEqual({ id: 12 });
   });
 
+  test('passes long and malformed strings to custom decoders unchanged', () => {
+    const seen: Array<string | null> = [];
+    const raw = `${'x'.repeat(1024)}%not-decoded`;
+
+    decodeRouteProps(`?payload=${encodeURIComponent(raw)}`, {
+      $payload(value: string | null) {
+        seen.push(value);
+        return value;
+      }
+    });
+
+    expect(seen).toEqual([raw]);
+  });
+
+  test('custom decoders may choose to return undefined instead of throwing on invalid input', () => {
+    expect(
+      decodeRouteProps('?page=NaN', {
+        $page(raw: string | null) {
+          const parsed = Number(raw);
+          return Number.isFinite(parsed) ? parsed : undefined;
+        }
+      })
+    ).toEqual({ page: undefined });
+  });
+
   test('decodes Boolean values', () => {
     expect(decodeRouteProps('?enabled=true', { $enabled: Boolean })).toEqual({ enabled: true });
   });
