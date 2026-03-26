@@ -82,7 +82,7 @@ type LazyRouteDefinition = {
 };
 ```
 
-This should live in `src/lib/lazy.ts` and be re-exported from `src/lib/index.ts`.
+This should live in `src/lazy.ts` and be re-exported from `src/index.ts`.
 
 ## Type Model
 
@@ -178,11 +178,11 @@ README and public API docs must present only the explicit form.
 
 Expected implementation touch points:
 
-- Create: `src/lib/lazy.ts`
-- Modify: `src/lib/types.ts`
-- Modify: `src/lib/route-validation.ts`
-- Modify: `src/lib/Route.svelte`
-- Modify: `src/lib/index.ts`
+- Create: `src/lazy.ts`
+- Modify: `src/types.ts`
+- Modify: `src/route-validation.ts`
+- Modify: `src/Route.svelte`
+- Modify: `src/index.ts`
 - Modify: `tests/route-component.test.ts`
 - Modify: `tests/query-navigation-history.test.ts`
 - Modify: `README.md`

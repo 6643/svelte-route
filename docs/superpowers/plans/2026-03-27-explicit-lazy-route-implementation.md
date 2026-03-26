@@ -4,7 +4,7 @@
 
 **Goal:** Replace implicit zero-argument lazy route detection with a single explicit `lazyRoute(...)` API so the router no longer executes user functions to guess whether a route is lazy.
 
-**Architecture:** Introduce a branded lazy route definition in `src/lib/lazy.ts`, thread that type through the public API and runtime validators, and update `Route.svelte` so it only accepts sync components or explicit lazy definitions. Treat bare zero-argument loaders as invalid configuration and migrate docs/tests to the new single lazy-route form.
+**Architecture:** Introduce a branded lazy route definition in `src/lazy.ts`, thread that type through the public API and runtime validators, and update `Route.svelte` so it only accepts sync components or explicit lazy definitions. Treat bare zero-argument loaders as invalid configuration and migrate docs/tests to the new single lazy-route form.
 
 **Tech Stack:** Bun, TypeScript, Svelte 5 runes, JSDOM, Bun test
 
@@ -13,9 +13,9 @@
 ### Task 1: Add Explicit Lazy Route Types And Public Helper
 
 **Files:**
-- Create: `src/lib/lazy.ts`
-- Modify: `src/lib/types.ts`
-- Modify: `src/lib/index.ts`
+- Create: `src/lazy.ts`
+- Modify: `src/types.ts`
+- Modify: `src/index.ts`
 - Modify: `tests/query-navigation-history.test.ts`
 
 - [ ] **Step 1: Write the failing tests**
@@ -35,8 +35,8 @@ Expected: FAIL because `lazyRoute` does not exist yet
 Implement:
 - `LazyRouteLoader`
 - `LazyRouteDefinition`
-- `lazyRoute(loader)` in `src/lib/lazy.ts`
-- public export wiring in `src/lib/index.ts`
+- `lazyRoute(loader)` in `src/lazy.ts`
+- public export wiring in `src/index.ts`
 
 Keep the lazy definition shape simple and explicit, for example a branded object with `kind: 'lazy-route'` and `load`.
 
@@ -48,15 +48,15 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/lazy.ts src/lib/types.ts src/lib/index.ts tests/query-navigation-history.test.ts
+git add src/lazy.ts src/types.ts src/index.ts tests/query-navigation-history.test.ts
 git commit -m "feat: add explicit lazy route definition"
 ```
 
 ### Task 2: Switch Route Runtime To Explicit Lazy Definitions
 
 **Files:**
-- Modify: `src/lib/route-validation.ts`
-- Modify: `src/lib/Route.svelte`
+- Modify: `src/route-validation.ts`
+- Modify: `src/Route.svelte`
 - Modify: `tests/route-component.test.ts`
 
 - [ ] **Step 1: Write the failing tests**
@@ -87,7 +87,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/route-validation.ts src/lib/Route.svelte tests/route-component.test.ts
+git add src/route-validation.ts src/Route.svelte tests/route-component.test.ts
 git commit -m "fix: require explicit lazy route wrappers"
 ```
 
@@ -127,11 +127,11 @@ git commit -m "docs: document explicit lazy route api"
 ### Task 4: Full Verification
 
 **Files:**
-- Modify: `src/lib/lazy.ts`
-- Modify: `src/lib/types.ts`
-- Modify: `src/lib/index.ts`
-- Modify: `src/lib/route-validation.ts`
-- Modify: `src/lib/Route.svelte`
+- Modify: `src/lazy.ts`
+- Modify: `src/types.ts`
+- Modify: `src/index.ts`
+- Modify: `src/route-validation.ts`
+- Modify: `src/Route.svelte`
 - Modify: `tests/query-navigation-history.test.ts`
 - Modify: `tests/route-component.test.ts`
 - Modify: `README.md`
@@ -155,6 +155,6 @@ Confirm the change set only contains the explicit lazy-route migration plus any 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/lib/lazy.ts src/lib/types.ts src/lib/index.ts src/lib/route-validation.ts src/lib/Route.svelte tests/query-navigation-history.test.ts tests/route-component.test.ts README.md docs/superpowers/specs/2026-03-27-explicit-lazy-route-design.md
+git add src/lazy.ts src/types.ts src/index.ts src/route-validation.ts src/Route.svelte tests/query-navigation-history.test.ts tests/route-component.test.ts README.md docs/superpowers/specs/2026-03-27-explicit-lazy-route-design.md
 git commit -m "refactor: replace implicit lazy route detection"
 ```
