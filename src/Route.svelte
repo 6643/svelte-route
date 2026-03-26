@@ -9,7 +9,7 @@
     subscribeRuntime
   } from './router.svelte.ts';
   import { decodeRouteProps } from './query.ts';
-  import { isLazyRouteDefinition, resolveLazyRouteComponent } from './route-validation.ts';
+  import { isLazyRouteDefinition, isPromiseLike, resolveLazyRouteComponent } from './route-validation.ts';
   import type { LazyRouteLoader, RouteComponent, RouteDecoder, RouteDecoderMap, RouteEntry, SyncRouteComponent } from './types.ts';
 
   type RouteProps = {
@@ -91,7 +91,9 @@
   const unregister = registerRoute(entry);
   let resolvedComponent = $state<SyncRouteComponent | null>(null);
   let lazyLoader = $state<LazyRouteLoader | null>(isLazyRouteDefinition(initialComponent) ? initialComponent.load : null);
+  let pendingLoad = $state<Promise<{ default: SyncRouteComponent }> | null>(null);
   let loadError = $state<unknown | null>(null);
+  let destroyed = false;
 
   $effect(() => {
     const nextConfig = validateRouteProps();
@@ -127,6 +129,12 @@
     return unregister;
   });
 
+  $effect(() => {
+    return () => {
+      destroyed = true;
+    };
+  });
+
   const active = $derived.by(() => {
     runtimeVersion;
     return getMatchedRouteId() === entry.id;
@@ -156,30 +164,39 @@
     if (resolvedComponent) {
       return;
     }
+
+    if (pendingLoad) {
+      return;
+    }
   });
 
   $effect(() => {
-    if (!active || resolvedComponent || !lazyLoader) {
+    if (!active || resolvedComponent || !lazyLoader || pendingLoad) {
       return;
     }
 
-    let cancelled = false;
+    const nextLoad = lazyLoader();
 
-    lazyLoader()
+    if (!isPromiseLike(nextLoad)) {
+      loadError = new Error('Lazy route loader must return a promise');
+      return;
+    }
+
+    pendingLoad = nextLoad as Promise<{ default: SyncRouteComponent }>;
+
+    pendingLoad
       .then((module) => {
-        if (!cancelled) {
+        if (!destroyed) {
           resolvedComponent = resolveLazyRouteComponent(module);
+          pendingLoad = null;
         }
       })
       .catch((error) => {
-        if (!cancelled) {
+        if (!destroyed) {
           loadError = error;
+          pendingLoad = null;
         }
       });
-
-    return () => {
-      cancelled = true;
-    };
   });
 
   $effect(() => {

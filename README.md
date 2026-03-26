@@ -176,6 +176,7 @@ Lazy route behavior:
 - No default loading UI is rendered while the loader is pending
 - The resolved module's `default` export is rendered
 - Loader errors are thrown upward
+- A pending lazy load is reused if the route is deactivated and reactivated before resolution
 - `lazyRoute(...)` must receive a zero-argument loader function that returns a promise
 - The resolved module must expose a function-valued `default` component export
 - Bare zero-argument loaders are not supported; wrap them in `lazyRoute(...)`

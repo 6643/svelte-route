@@ -560,4 +560,80 @@ describe('Route component', () => {
 
     expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{"id":2}');
   });
+
+  test('reactivating a pending lazy route does not restart the loader', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/lazy');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    let loaderCalls = 0;
+    let resolveLoader: ((value: { default: SyncRouteComponent }) => void) | undefined;
+    const Lazy = () => {
+      loaderCalls += 1;
+      return new Promise<{ default: SyncRouteComponent }>((resolve) => {
+        resolveLoader = resolve;
+      });
+    };
+
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '/lazy',
+        component: lazyRoute(Lazy)
+      }
+    });
+
+    flushSync();
+    expect(loaderCalls).toBe(1);
+
+    routePush('/other');
+    flushSync();
+    routePush('/lazy');
+    flushSync();
+
+    expect(loaderCalls).toBe(1);
+
+    resolveLoader?.({ default: SyncA as SyncRouteComponent });
+    await Promise.resolve();
+    await Promise.resolve();
+    flushSync();
+
+    expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{}');
+  });
+
+  test('lazy routes fail with a clear error when the loader does not return a promise', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/lazy');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/Route.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '/lazy',
+        component: lazyRoute(() => null as never)
+      }
+    });
+
+    let thrown: unknown = null;
+
+    try {
+      flushSync();
+      await Promise.resolve();
+      await Promise.resolve();
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown instanceof Error).toBe(true);
+    expect((thrown as Error).message.includes('return a promise')).toBe(true);
+  });
 });
