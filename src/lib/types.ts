@@ -10,9 +10,14 @@ export type RouteDecoderMap = Record<`$${string}`, RouteDecoder>;
 
 export type SyncRouteComponent = Component<any>;
 
-export type LazyRouteComponent = () => Promise<{ default: SyncRouteComponent }>;
+export type LazyRouteLoader = () => Promise<{ default: SyncRouteComponent }>;
 
-export type RouteComponent = SyncRouteComponent | LazyRouteComponent;
+export type LazyRouteDefinition = {
+  kind: 'lazy-route';
+  load: LazyRouteLoader;
+};
+
+export type RouteComponent = SyncRouteComponent | LazyRouteDefinition;
 
 export type RouteHistoryState = {
   __route: {

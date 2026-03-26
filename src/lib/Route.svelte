@@ -9,8 +9,8 @@
     subscribeRuntime
   } from './router.svelte.ts';
   import { decodeRouteProps } from './query.ts';
-  import { isPromiseLike, resolveLazyRouteComponent } from './route-validation.ts';
-  import type { RouteComponent, RouteDecoder, RouteDecoderMap, RouteEntry } from './types.ts';
+  import { isLazyRouteDefinition, resolveLazyRouteComponent } from './route-validation.ts';
+  import type { LazyRouteLoader, RouteComponent, RouteDecoder, RouteDecoderMap, RouteEntry, SyncRouteComponent } from './types.ts';
 
   type RouteProps = {
     path: string;
@@ -35,16 +35,24 @@
       (!routeProps.path.startsWith('/') ||
         routeProps.path.startsWith('//') ||
         routeProps.path.includes('?') ||
-        routeProps.path.includes('#'))
+        routeProps.path.includes('#') ||
+        routeProps.path.split('/').some((segment) => segment === '.' || segment === '..'))
     ) {
       throw new Error('Route path must be "*" or an absolute pathname without query or hash');
     }
 
-    if (typeof routeProps.component !== 'function') {
-      throw new Error('Invalid Route component');
-    }
-
     const decoders = {} as RouteDecoderMap;
+    const lazyComponent = isLazyRouteDefinition(routeProps.component);
+
+    if (!lazyComponent) {
+      if (typeof routeProps.component !== 'function') {
+        throw new Error('Invalid Route component');
+      }
+
+      if (routeProps.component.length === 0) {
+        throw new Error('Lazy routes must use lazyRoute(() => import(...))');
+      }
+    }
 
     for (const key in routeProps) {
       if (key === 'path' || key === 'component') {
@@ -81,8 +89,8 @@
     runtimeVersion += 1;
   });
   const unregister = registerRoute(entry);
-  let resolvedComponent = $state<RouteComponent | null>(null);
-  let lazyLoader = $state<(() => Promise<{ default: RouteComponent }>) | null>(null);
+  let resolvedComponent = $state<SyncRouteComponent | null>(null);
+  let lazyLoader = $state<LazyRouteLoader | null>(isLazyRouteDefinition(initialComponent) ? initialComponent.load : null);
   let loadError = $state<unknown | null>(null);
 
   $effect(() => {
@@ -129,8 +137,6 @@
     return active ? decodeRouteProps(getCurrentSearch(), entry.decoders) : {};
   });
 
-  let lazyProbeSettled = false;
-
   $effect(() => {
     loadError = null;
 
@@ -142,26 +148,14 @@
       return;
     }
 
-    if (resolvedComponent || lazyLoader || lazyProbeSettled) {
+    if (!lazyLoader) {
+      resolvedComponent = initialComponent as SyncRouteComponent;
       return;
     }
 
-    const candidate = initialComponent as (...args: unknown[]) => unknown;
-
-    if (candidate.length !== 0) {
-      resolvedComponent = initialComponent;
+    if (resolvedComponent) {
       return;
     }
-
-    const probe = candidate();
-
-    if (!isPromiseLike(probe)) {
-      loadError = new Error('Lazy route component must be a zero-argument function that returns a promise');
-      return;
-    }
-
-    lazyLoader = () => probe as Promise<{ default: RouteComponent }>;
-    lazyProbeSettled = true;
   });
 
   $effect(() => {

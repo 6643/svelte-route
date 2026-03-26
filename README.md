@@ -50,7 +50,7 @@ For `/user?id=7`, the `User` component receives:
 `Route` accepts:
 
 - `path`: exact pathname to match, or `*` for a fallback route
-- `component`: a Svelte component or a lazy loader
+- `component`: a Svelte component or an explicit `lazyRoute(...)` definition
 - `$name`: an optional query decoder that maps `?name=value` to a prop named `name`
 
 Matching behavior:
@@ -59,7 +59,7 @@ Matching behavior:
 - If no exact route matches, the last registered `path="*"` route wins
 - Query strings do not affect route matching
 - Route configuration is treated as immutable after mount
-- `path` must be `*` or an absolute pathname without query or hash
+- `path` must be `*` or an absolute pathname without query, hash, `.` or `..` segments
 
 ## Query Decoder Props
 
@@ -159,16 +159,16 @@ Invalid navigation inputs throw:
 
 ## Lazy Routes
 
-`component` also accepts a lazy loader with the shape `() => import('./Component.svelte')`.
+`component` also accepts an explicit lazy route definition created with `lazyRoute(...)`.
 
 ```svelte
 <script lang="ts">
-  import { Route } from 'svelte-route';
+  import { Route, lazyRoute } from 'svelte-route';
 
   const loadSettings = () => import('./routes/Settings.svelte');
 </script>
 
-<Route path="/settings" component={loadSettings} />
+<Route path="/settings" component={lazyRoute(loadSettings)} />
 ```
 
 Lazy route behavior:
@@ -176,9 +176,9 @@ Lazy route behavior:
 - No default loading UI is rendered while the loader is pending
 - The resolved module's `default` export is rendered
 - Loader errors are thrown upward
-- A lazy loader must be a zero-argument function that returns a promise
+- `lazyRoute(...)` must receive a zero-argument loader function that returns a promise
 - The resolved module must expose a function-valued `default` component export
-- A zero-argument function that does not return a promise is treated as an invalid lazy route component and throws
+- Bare zero-argument loaders are not supported; wrap them in `lazyRoute(...)`
 
 ## Limits
 

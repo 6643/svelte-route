@@ -272,12 +272,30 @@ describe('public api', () => {
     const entry = await import('../src/lib/index.ts');
 
     expect(typeof entry.Route).toBe('string');
+    expect(typeof entry.lazyRoute).toBe('function');
     expect(typeof entry.routePush).toBe('function');
     expect(typeof entry.routeReplace).toBe('function');
     expect(typeof entry.routeCurrentPath).toBe('function');
     expect(typeof entry.routeBackPath).toBe('function');
     expect(typeof entry.routeForwardPath).toBe('function');
     expect('__resetRouteSystemForTest' in entry).toBe(false);
+  });
+
+  test('lazyRoute returns an explicit lazy route definition', async () => {
+    const entry = await import('../src/lib/index.ts');
+    const loader = () => Promise.resolve({ default: (() => null) as never });
+    const definition = entry.lazyRoute(loader);
+
+    expect(definition).toEqual({
+      kind: 'lazy-route',
+      load: loader
+    });
+  });
+
+  test('lazyRoute rejects non-function input', async () => {
+    const entry = await import('../src/lib/index.ts');
+
+    expect(() => entry.lazyRoute(null as never)).toThrow(/loader/i);
   });
 });
 

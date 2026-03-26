@@ -5,7 +5,9 @@ import { mount as svelteMount, unmount as svelteUnmount } from '../node_modules/
 // @ts-expect-error test-only client entry under Bun-only setup
 import { flush_sync as flushSync } from '../node_modules/svelte/src/internal/client/runtime.js';
 
+import { lazyRoute } from '../src/lib/lazy.ts';
 import { __resetRouteSystemForTest, routePush } from '../src/lib/router.svelte.ts';
+import type { SyncRouteComponent } from '../src/lib/types.ts';
 import { loadCompiledComponent } from './helpers/compile-svelte.ts';
 import { lifecycle, resetLifecycle } from './fixtures/lifecycle.ts';
 
@@ -313,6 +315,23 @@ describe('Route component', () => {
     ).toThrow(/absolute pathname/i);
   });
 
+  test('throws for route paths that include dot segments', async () => {
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    expect(() =>
+      mount(Route, {
+        target,
+        props: {
+          path: '/a/../b',
+          component: SyncA
+        }
+      })
+    ).toThrow(/absolute pathname/i);
+  });
+
   test('passes $path and $component to the child as path and component props', async () => {
     cleanupDom();
     cleanupDom = installDom('/debug?path=one&component=two');
@@ -395,7 +414,7 @@ describe('Route component', () => {
     }).toThrow(/decoder/i);
   });
 
-  test('zero-argument functions that are not lazy loaders fail with a clear lazy component error', async () => {
+  test('bare zero-argument route loaders must use lazyRoute and are not probed eagerly', async () => {
     cleanupDom();
     cleanupDom = installDom('/ambiguous');
     __resetRouteSystemForTest();
@@ -404,19 +423,22 @@ describe('Route component', () => {
     const target = document.createElement('div');
     document.body.append(target);
 
-    const Ambiguous = () => null;
-
-    mounted = mount(Route, {
-      target,
-      props: {
-        path: '/ambiguous',
-        component: Ambiguous
-      }
-    });
+    let loaderCalls = 0;
+    const Ambiguous = () => {
+      loaderCalls += 1;
+      return Promise.resolve({ default: (() => null) as never });
+    };
 
     expect(() => {
-      flushSync();
-    }).toThrow(/lazy route component/i);
+      mounted = mount(Route, {
+        target,
+        props: {
+          path: '/ambiguous',
+          component: Ambiguous
+        }
+      });
+    }).toThrow(/lazyroute/i);
+    expect(loaderCalls).toBe(0);
   });
 
   test('renders lazy routes without default loading dom', async () => {
@@ -429,9 +451,9 @@ describe('Route component', () => {
     const target = document.createElement('div');
     document.body.append(target);
 
-    let resolveLoader: ((value: { default: unknown }) => void) | undefined;
+    let resolveLoader: ((value: { default: SyncRouteComponent }) => void) | undefined;
     const Lazy = () =>
-      new Promise<{ default: unknown }>((resolve) => {
+      new Promise<{ default: SyncRouteComponent }>((resolve) => {
         resolveLoader = resolve;
       });
 
@@ -439,7 +461,7 @@ describe('Route component', () => {
       target,
       props: {
         path: '/lazy',
-        component: Lazy,
+        component: lazyRoute(Lazy),
         $id: Number
       }
     });
@@ -448,7 +470,7 @@ describe('Route component', () => {
     expect(target.querySelector('[data-testid="lazy-target"]')).toBeNull();
     expect(target.textContent).toBe('');
 
-    resolveLoader?.({ default: LazyTarget });
+    resolveLoader?.({ default: LazyTarget as SyncRouteComponent });
     await Promise.resolve();
     await Promise.resolve();
     flushSync();
@@ -467,13 +489,13 @@ describe('Route component', () => {
     const target = document.createElement('div');
     document.body.append(target);
 
-    const Lazy = () => Promise.resolve({ default: SyncA });
+    const Lazy = () => Promise.resolve({ default: SyncA as SyncRouteComponent });
 
     mounted = mount(Route, {
       target,
       props: {
         path: '/lazy',
-        component: Lazy,
+        component: lazyRoute(Lazy),
         $id: Number
       }
     });
@@ -507,10 +529,10 @@ describe('Route component', () => {
     document.body.append(target);
 
     let loaderCalls = 0;
-    let resolveLoader: ((value: { default: unknown }) => void) | undefined;
+    let resolveLoader: ((value: { default: SyncRouteComponent }) => void) | undefined;
     const Lazy = () => {
       loaderCalls += 1;
-      return new Promise<{ default: unknown }>((resolve) => {
+      return new Promise<{ default: SyncRouteComponent }>((resolve) => {
         resolveLoader = resolve;
       });
     };
@@ -519,7 +541,7 @@ describe('Route component', () => {
       target,
       props: {
         path: '/lazy',
-        component: Lazy,
+        component: lazyRoute(Lazy),
         $id: Number
       }
     });
@@ -531,7 +553,7 @@ describe('Route component', () => {
     flushSync();
     expect(loaderCalls).toBe(1);
 
-    resolveLoader?.({ default: SyncA });
+    resolveLoader?.({ default: SyncA as SyncRouteComponent });
     await Promise.resolve();
     await Promise.resolve();
     flushSync();
