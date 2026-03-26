@@ -5,9 +5,9 @@ import { mount as svelteMount, unmount as svelteUnmount } from '../node_modules/
 // @ts-expect-error test-only client entry under Bun-only setup
 import { flush_sync as flushSync } from '../node_modules/svelte/src/internal/client/runtime.js';
 
-import { lazyRoute } from '../src/lib/lazy.ts';
-import { __resetRouteSystemForTest, routePush } from '../src/lib/router.svelte.ts';
-import type { SyncRouteComponent } from '../src/lib/types.ts';
+import { lazyRoute } from '../src/lazy.ts';
+import { __resetRouteSystemForTest, routePush } from '../src/router.svelte.ts';
+import type { SyncRouteComponent } from '../src/types.ts';
 import { loadCompiledComponent } from './helpers/compile-svelte.ts';
 import { lifecycle, resetLifecycle } from './fixtures/lifecycle.ts';
 
@@ -88,7 +88,7 @@ afterEach(() => {
 
 describe('Route component', () => {
   test('renders wildcard route when no exact path matches', async () => {
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const NotFound = await loadCompiledComponent('./tests/fixtures/NotFound.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -111,7 +111,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/user?id=7');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -129,7 +129,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/same');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const SyncB = await loadCompiledComponent('./tests/fixtures/SyncB.svelte');
     const target = document.createElement('div');
@@ -149,7 +149,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/missing');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const SyncB = await loadCompiledComponent('./tests/fixtures/SyncB.svelte');
     const target = document.createElement('div');
@@ -181,7 +181,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/user?id=1');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -210,7 +210,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/a');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const SyncB = await loadCompiledComponent('./tests/fixtures/SyncB.svelte');
     const target = document.createElement('div');
@@ -234,7 +234,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/a');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const SyncB = await loadCompiledComponent('./tests/fixtures/SyncB.svelte');
     const target = document.createElement('div');
@@ -264,7 +264,7 @@ describe('Route component', () => {
   });
 
   test('throws for invalid extra props', async () => {
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -282,7 +282,7 @@ describe('Route component', () => {
   });
 
   test('throws for bare relative route paths', async () => {
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -299,7 +299,7 @@ describe('Route component', () => {
   });
 
   test('throws for route paths that include query strings', async () => {
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -316,7 +316,7 @@ describe('Route component', () => {
   });
 
   test('throws for route paths that include dot segments', async () => {
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -337,7 +337,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/debug?path=one&component=two');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -419,7 +419,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/ambiguous');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const target = document.createElement('div');
     document.body.append(target);
 
@@ -446,7 +446,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/lazy?id=9');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const LazyTarget = await loadCompiledComponent('./tests/fixtures/LazyTarget.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -484,7 +484,7 @@ describe('Route component', () => {
     __resetRouteSystemForTest();
     resetLifecycle();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);
@@ -523,7 +523,7 @@ describe('Route component', () => {
     cleanupDom = installDom('/lazy?id=1');
     __resetRouteSystemForTest();
 
-    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const Route = await loadCompiledComponent('./src/Route.svelte');
     const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
     const target = document.createElement('div');
     document.body.append(target);

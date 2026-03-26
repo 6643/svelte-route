@@ -2,10 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
-import { buildPushState, buildReplaceState, normalizeHistoryState } from '../src/lib/history.ts';
-import { getRawAnchorNavigationTarget, normalizeNavigationTarget } from '../src/lib/navigation.ts';
-import { decodeQueryValue, decodeRouteProps } from '../src/lib/query.ts';
-import { resolveLazyRouteComponent } from '../src/lib/route-validation.ts';
+import { buildPushState, buildReplaceState, normalizeHistoryState } from '../src/history.ts';
+import { getRawAnchorNavigationTarget, normalizeNavigationTarget } from '../src/navigation.ts';
+import { decodeQueryValue, decodeRouteProps } from '../src/query.ts';
+import { resolveLazyRouteComponent } from '../src/route-validation.ts';
 
 const PRIMARY_OWNER = 'owner-primary';
 const FOREIGN_OWNER = 'owner-foreign';
@@ -269,7 +269,7 @@ describe('history state', () => {
 
 describe('public api', () => {
   test('exports the route api from the public entry', async () => {
-    const entry = await import('../src/lib/index.ts');
+    const entry = await import('../src/index.ts');
 
     expect(typeof entry.Route).toBe('string');
     expect(typeof entry.lazyRoute).toBe('function');
@@ -282,7 +282,7 @@ describe('public api', () => {
   });
 
   test('lazyRoute returns an explicit lazy route definition', async () => {
-    const entry = await import('../src/lib/index.ts');
+    const entry = await import('../src/index.ts');
     const loader = () => Promise.resolve({ default: (() => null) as never });
     const definition = entry.lazyRoute(loader);
 
@@ -293,7 +293,7 @@ describe('public api', () => {
   });
 
   test('lazyRoute rejects non-function input', async () => {
-    const entry = await import('../src/lib/index.ts');
+    const entry = await import('../src/index.ts');
 
     expect(() => entry.lazyRoute(null as never)).toThrow(/loader/i);
   });

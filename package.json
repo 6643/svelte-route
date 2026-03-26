@@ -2,7 +2,7 @@
     "name": "svelte-route",
     "private": true,
     "exports": {
-        ".": "./src/lib/index.ts",
+        ".": "./src/index.ts",
         "./package.json": "./package.json"
     },
     "type": "module",

@@ -1,7 +1,7 @@
 <svelte:options runes={true} />
 
 <script lang="ts">
-  import Route from '../../src/lib/Route.svelte';
+  import Route from '../../src/Route.svelte';
 
   import SyncA from './SyncA.svelte';
   import SyncB from './SyncB.svelte';
