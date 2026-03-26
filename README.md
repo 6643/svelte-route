@@ -59,6 +59,7 @@ Matching behavior:
 - If no exact route matches, the last registered `path="*"` route wins
 - Query strings do not affect route matching
 - Route configuration is treated as immutable after mount
+- `path` must be `*` or an absolute pathname without query or hash
 
 ## Query Decoder Props
 
@@ -145,6 +146,7 @@ Navigation behavior:
 - `routeReplace()` rewrites the current history entry
 - Navigating to the current normalized path is a no-op
 - Browser back/forward keeps route rendering and helper outputs in sync
+- Router-managed back/forward hints are bounded to the most recent 100 managed entries
 - Query-only updates preserve the current hash fragment
 
 Invalid navigation inputs throw:
@@ -175,12 +177,14 @@ Lazy route behavior:
 - The resolved module's `default` export is rendered
 - Loader errors are thrown upward
 - A lazy loader must be a zero-argument function that returns a promise
+- The resolved module must expose a function-valued `default` component export
 - A zero-argument function that does not return a promise is treated as an invalid lazy route component and throws
 
 ## Limits
 
 - Client-side SPA routing only
 - Browser environment required
+- Router-managed history metadata is scoped to the current runtime session; stale or foreign managed state is repaired to the current path
 - Dynamic route params are not included
 - Nested routes are not included
 - Anchor interception is not included
@@ -193,3 +197,8 @@ bun install
 bun test
 bun run typecheck
 ```
+
+Development metadata notes:
+
+- Repository `devDependencies` are pinned to exact versions for reproducible local verification
+- Library `peerDependencies` stay on compatibility ranges so consuming apps are not locked to one exact patch

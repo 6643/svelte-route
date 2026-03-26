@@ -1,9 +1,15 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 import { buildPushState, buildReplaceState, normalizeHistoryState } from '../src/lib/history.ts';
 import { getRawAnchorNavigationTarget, normalizeNavigationTarget } from '../src/lib/navigation.ts';
 import { decodeQueryValue, decodeRouteProps } from '../src/lib/query.ts';
+import { resolveLazyRouteComponent } from '../src/lib/route-validation.ts';
+
+const PRIMARY_OWNER = 'owner-primary';
+const FOREIGN_OWNER = 'owner-foreign';
+const MAX_MANAGED_HISTORY_ENTRIES = 100;
 
 const createAnchor = (href: string) => {
   const { window } = new JSDOM('<a></a>');
@@ -15,6 +21,24 @@ const createAnchor = (href: string) => {
 
   anchor.setAttribute('href', href);
   return anchor;
+};
+
+const expectManagedRouteState = (
+  state: Record<string, unknown>,
+  expected: {
+    index: number;
+    stack: string[];
+  }
+) => {
+  const route = state.__route as {
+    index: number;
+    stack: string[];
+    signature: unknown;
+  };
+
+  expect(route.index).toBe(expected.index);
+  expect(route.stack).toEqual(expected.stack);
+  expect(typeof route.signature).toBe('string');
 };
 
 describe('query decoders', () => {
@@ -99,6 +123,12 @@ describe('query decoders', () => {
   });
 });
 
+describe('route validation', () => {
+  test('lazy route modules must expose a default component export', () => {
+    expect(() => resolveLazyRouteComponent({})).toThrow(/lazy route component/i);
+  });
+});
+
 describe('navigation', () => {
   test('normalizes query only targets against current pathname', () => {
     expect(normalizeNavigationTarget('?page=2', '/user?id=1', 'https://app.test')).toBe('/user?page=2');
@@ -135,75 +165,104 @@ describe('navigation', () => {
 
 describe('history state', () => {
   test('repairs non router managed history state and preserves foreign fields', () => {
-    expect(normalizeHistoryState({ foo: 1 }, '/')).toEqual({
-      foo: 1,
-      __route: {
-        index: 0,
-        stack: ['/']
-      }
+    const state = normalizeHistoryState({ foo: 1 }, '/', PRIMARY_OWNER);
+
+    expect(state.foo).toBe(1);
+    expectManagedRouteState(state, {
+      index: 0,
+      stack: ['/']
     });
   });
 
   test('repairs malformed router managed history state and preserves foreign fields', () => {
-    expect(
-      normalizeHistoryState(
-        {
-          foo: 1,
-          __route: {
-            index: -1,
-            stack: [42]
-          }
-        },
-        '/a'
-      )
-    ).toEqual({
-      foo: 1,
-      __route: {
-        index: 0,
-        stack: ['/a']
-      }
+    const state = normalizeHistoryState(
+      {
+        foo: 1,
+        __route: {
+          index: -1,
+          stack: [42]
+        }
+      },
+      '/a',
+      PRIMARY_OWNER
+    );
+
+    expect(state.foo).toBe(1);
+    expectManagedRouteState(state, {
+      index: 0,
+      stack: ['/a']
     });
   });
 
-  test('builds push state by truncating forward history', () => {
-    expect(
-      buildPushState(
-        {
-          foo: 1,
-          __route: {
-            index: 0,
-            stack: ['/a', '/b']
-          }
-        },
-        '/c'
-      )
-    ).toEqual({
-      foo: 1,
-      __route: {
-        index: 1,
-        stack: ['/a', '/c']
-      }
+  test('repairs valid-shape router managed history state created by another owner', () => {
+    const foreignState = buildPushState(normalizeHistoryState(undefined, '/a', FOREIGN_OWNER), '/b', FOREIGN_OWNER);
+    const normalized = normalizeHistoryState(foreignState, '/b', PRIMARY_OWNER);
+
+    expectManagedRouteState(normalized, {
+      index: 0,
+      stack: ['/b']
     });
   });
 
-  test('builds replace state without growing history', () => {
-    expect(
-      buildReplaceState(
-        {
-          foo: 1,
-          __route: {
-            index: 1,
-            stack: ['/a', '/b']
-          }
-        },
-        '/c'
-      )
-    ).toEqual({
-      foo: 1,
-      __route: {
-        index: 1,
-        stack: ['/a', '/c']
-      }
+  test('trusted managed history survives normalization', () => {
+    const ownedState = buildPushState(normalizeHistoryState({ foo: 1 }, '/a', PRIMARY_OWNER), '/b', PRIMARY_OWNER);
+    const normalized = normalizeHistoryState(ownedState, '/b', PRIMARY_OWNER);
+
+    expect(normalized).toEqual(ownedState);
+  });
+
+  test('builds push state by truncating forward history and refreshing the signature', () => {
+    const state = buildPushState(
+      {
+        foo: 1,
+        __route: {
+          index: 0,
+          stack: ['/a', '/b'],
+          signature: 'stale-signature'
+        }
+      },
+      '/c',
+      PRIMARY_OWNER
+    );
+
+    expect(state.foo).toBe(1);
+    expectManagedRouteState(state, {
+      index: 1,
+      stack: ['/a', '/c']
+    });
+  });
+
+  test('builds replace state without growing history and refreshing the signature', () => {
+    const state = buildReplaceState(
+      {
+        foo: 1,
+        __route: {
+          index: 1,
+          stack: ['/a', '/b'],
+          signature: 'stale-signature'
+        }
+      },
+      '/c',
+      PRIMARY_OWNER
+    );
+
+    expect(state.foo).toBe(1);
+    expectManagedRouteState(state, {
+      index: 1,
+      stack: ['/a', '/c']
+    });
+  });
+
+  test('caps managed history stack growth to the configured maximum', () => {
+    let state = normalizeHistoryState(undefined, '/p0', PRIMARY_OWNER);
+
+    for (let index = 1; index <= MAX_MANAGED_HISTORY_ENTRIES + 10; index += 1) {
+      state = buildPushState(state, `/p${index}`, PRIMARY_OWNER);
+    }
+
+    expectManagedRouteState(state, {
+      index: MAX_MANAGED_HISTORY_ENTRIES - 1,
+      stack: Array.from({ length: MAX_MANAGED_HISTORY_ENTRIES }, (_, index) => `/p${index + 11}`)
     });
   });
 });
@@ -219,5 +278,27 @@ describe('public api', () => {
     expect(typeof entry.routeBackPath).toBe('function');
     expect(typeof entry.routeForwardPath).toBe('function');
     expect('__resetRouteSystemForTest' in entry).toBe(false);
+  });
+});
+
+describe('package metadata', () => {
+  test('pins development dependencies and keeps peer dependencies as explicit compatibility ranges', () => {
+    const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      devDependencies: Record<string, string>;
+      peerDependencies: Record<string, string>;
+    };
+
+    expect(packageJson.devDependencies).toEqual({
+      '@types/node': '25.5.0',
+      jsdom: '29.0.1',
+      svelte: '5.0.0-next.272',
+      'svelte-check': '4.4.5',
+      typescript: '5.9.3'
+    });
+
+    expect(packageJson.peerDependencies).toEqual({
+      svelte: '^5.0.0-next.0 || ^5.0.0',
+      typescript: '>=5.0.0 <6'
+    });
   });
 });

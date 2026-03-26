@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { JSDOM } from 'jsdom';
 
+import { createManagedRouteState } from '../src/lib/history.ts';
 import {
+  __createRouteHistoryStateForTest,
   __resetRouteSystemForTest,
   getMatchedRouteId,
   initRouteSystem,
@@ -10,10 +12,29 @@ import {
   routeCurrentPath,
   routeForwardPath,
   routePush,
-  routeReplace
+  routeReplace,
+  subscribeRuntime
 } from '../src/lib/router.svelte.ts';
 
 let cleanupDom = () => {};
+
+const expectManagedRouteHistoryState = (
+  state: Record<string, unknown>,
+  expected: {
+    index: number;
+    stack: string[];
+  }
+) => {
+  const route = state.__route as {
+    index: number;
+    stack: string[];
+    signature: unknown;
+  };
+
+  expect(route.index).toBe(expected.index);
+  expect(route.stack).toEqual(expected.stack);
+  expect(typeof route.signature).toBe('string');
+};
 
 const installDom = (path: string) => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
@@ -71,10 +92,10 @@ describe('router runtime', () => {
 
     history.replaceState(
       {
-        __route: {
+        __route: __createRouteHistoryStateForTest({
           index: 0,
           stack: ['/a', '/b']
-        }
+        })
       },
       '',
       '/a'
@@ -155,13 +176,86 @@ describe('router runtime', () => {
     expect(routeCurrentPath()).toBe('/a');
     expect(routeBackPath()).toBeNull();
     expect(routeForwardPath()).toBeNull();
-    expect(history.state).toEqual({
-      foo: 1,
-      __route: {
-        index: 0,
-        stack: ['/a']
-      }
+    expect((history.state as { foo?: number }).foo).toBe(1);
+    expectManagedRouteHistoryState(history.state, {
+      index: 0,
+      stack: ['/a']
     });
+  });
+
+  test('popstate repairs valid-shape router managed history state from another owner', () => {
+    cleanupDom();
+    cleanupDom = installDom('/b');
+    __resetRouteSystemForTest();
+
+    history.replaceState(
+      {
+        foo: 1,
+        __route: createManagedRouteState(
+          {
+            index: 1,
+            stack: ['/a', '/b']
+          },
+          'foreign-owner'
+        )
+      },
+      '',
+      '/b'
+    );
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/b');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect((history.state as { foo?: number }).foo).toBe(1);
+    expectManagedRouteHistoryState(history.state, {
+      index: 0,
+      stack: ['/b']
+    });
+  });
+
+  test('notifies subscribers only when route registration changes the active match', () => {
+    initRouteSystem();
+
+    let notifications = 0;
+    const unsubscribe = subscribeRuntime(() => {
+      notifications += 1;
+    });
+
+    const unregisterUnmatched = registerRoute({
+      id: Symbol('/b'),
+      path: '/b',
+      component: (() => null) as never,
+      decoders: {}
+    });
+    expect(notifications).toBe(0);
+
+    const unregisterFallback = registerRoute({
+      id: Symbol('*'),
+      path: '*',
+      component: (() => null) as never,
+      decoders: {}
+    });
+    expect(notifications).toBe(1);
+
+    const unregisterExact = registerRoute({
+      id: Symbol('/a'),
+      path: '/a',
+      component: (() => null) as never,
+      decoders: {}
+    });
+    expect(notifications).toBe(2);
+
+    unregisterUnmatched();
+    expect(notifications).toBe(2);
+
+    unregisterExact();
+    expect(notifications).toBe(3);
+
+    unregisterFallback();
+    expect(notifications).toBe(4);
+
+    unsubscribe();
   });
 
   test('reuses the matched route lookup until runtime state changes', () => {

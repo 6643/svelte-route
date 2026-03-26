@@ -279,6 +279,40 @@ describe('Route component', () => {
     ).toThrow(/Unsupported Route prop/);
   });
 
+  test('throws for bare relative route paths', async () => {
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    expect(() =>
+      mount(Route, {
+        target,
+        props: {
+          path: 'user',
+          component: SyncA
+        }
+      })
+    ).toThrow(/absolute pathname/i);
+  });
+
+  test('throws for route paths that include query strings', async () => {
+    const Route = await loadCompiledComponent('./src/lib/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    expect(() =>
+      mount(Route, {
+        target,
+        props: {
+          path: '/user?id=1',
+          component: SyncA
+        }
+      })
+    ).toThrow(/absolute pathname/i);
+  });
+
   test('passes $path and $component to the child as path and component props', async () => {
     cleanupDom();
     cleanupDom = installDom('/debug?path=one&component=two');

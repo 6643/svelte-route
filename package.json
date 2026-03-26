@@ -11,14 +11,14 @@
         "typecheck": "svelte-check --tsconfig ./tsconfig.json"
     },
     "devDependencies": {
-        "@types/node": "latest",
-        "jsdom": "latest",
-        "svelte": "next",
-        "svelte-check": "latest",
-        "typescript": "latest"
+        "@types/node": "25.5.0",
+        "jsdom": "29.0.1",
+        "svelte": "5.0.0-next.272",
+        "svelte-check": "4.4.5",
+        "typescript": "5.9.3"
     },
     "peerDependencies": {
-        "svelte": "next",
-        "typescript": "latest"
+        "svelte": "^5.0.0-next.0 || ^5.0.0",
+        "typescript": ">=5.0.0 <6"
     }
 }

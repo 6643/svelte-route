@@ -9,7 +9,7 @@
     subscribeRuntime
   } from './router.svelte.ts';
   import { decodeRouteProps } from './query.ts';
-  import { isPromiseLike } from './route-validation.ts';
+  import { isPromiseLike, resolveLazyRouteComponent } from './route-validation.ts';
   import type { RouteComponent, RouteDecoder, RouteDecoderMap, RouteEntry } from './types.ts';
 
   type RouteProps = {
@@ -28,6 +28,16 @@
 
     if (typeof routeProps.path !== 'string') {
       throw new Error('Route path must be a string');
+    }
+
+    if (
+      routeProps.path !== '*' &&
+      (!routeProps.path.startsWith('/') ||
+        routeProps.path.startsWith('//') ||
+        routeProps.path.includes('?') ||
+        routeProps.path.includes('#'))
+    ) {
+      throw new Error('Route path must be "*" or an absolute pathname without query or hash');
     }
 
     if (typeof routeProps.component !== 'function') {
@@ -164,7 +174,7 @@
     lazyLoader()
       .then((module) => {
         if (!cancelled) {
-          resolvedComponent = module.default;
+          resolvedComponent = resolveLazyRouteComponent(module);
         }
       })
       .catch((error) => {

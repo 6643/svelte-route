@@ -18,6 +18,7 @@ export type RouteHistoryState = {
   __route: {
     index: number;
     stack: string[];
+    signature: string;
   };
 } & Record<string, unknown>;
 
