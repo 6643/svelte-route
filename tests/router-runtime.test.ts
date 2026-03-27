@@ -359,6 +359,30 @@ describe('router runtime', () => {
     expect(history.state).toEqual({ step: 2 });
   });
 
+  test('popstate drops ambiguous hints when duplicate native entries share the same path and payload', () => {
+    expect(routeCurrentPath()).toBe('/a');
+
+    history.pushState({ mid: 1 }, '', '/b');
+    history.pushState({ same: true }, '', '/a');
+    history.pushState({ mid: 2 }, '', '/b');
+    history.pushState({ same: true }, '', '/a');
+
+    replaceHistoryStateWithoutRuntimeSync({ mid: 2 }, '/b');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/b');
+    expect(routeBackPath()).toBe('/a');
+    expect(routeForwardPath()).toBe('/a');
+
+    replaceHistoryStateWithoutRuntimeSync({ same: true }, '/a');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect(history.state).toEqual({ same: true });
+  });
+
   test('popstate repairs valid-shape router managed history state from another owner', () => {
     cleanupDom();
     cleanupDom = installDom('/b');

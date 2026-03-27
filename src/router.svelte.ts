@@ -304,23 +304,28 @@ const selectNearestHistoryIndex = (candidates: number[]): number | null => {
   const activeCandidates = preferredCandidates.length > 0 ? preferredCandidates : candidates;
   let nearestIndex = activeCandidates[0];
   let nearestDistance = Math.abs(nearestIndex - historyState.__route.index);
+  let nearestCount = 1;
 
   for (const candidate of activeCandidates.slice(1)) {
     const distance = Math.abs(candidate - historyState.__route.index);
     if (distance < nearestDistance) {
       nearestIndex = candidate;
       nearestDistance = distance;
+      nearestCount = 1;
+      continue;
+    }
+
+    if (distance === nearestDistance) {
+      nearestCount += 1;
     }
   }
 
-  return nearestIndex;
+  return nearestCount === 1 ? nearestIndex : null;
 };
 
 const findNearestKnownRouteIndex = (nextPath: string, nextHistoryState: unknown): number | null => {
   const exactMatches: number[] = [];
   const pathMatches: number[] = [];
-  let nearestIndex: number | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
 
   for (let index = 0; index < historyState.__route.stack.length; index += 1) {
     if (historyState.__route.stack[index] !== nextPath) {
@@ -344,19 +349,7 @@ const findNearestKnownRouteIndex = (nextPath: string, nextHistoryState: unknown)
     return pathIndex;
   }
 
-  for (let index = 0; index < historyState.__route.stack.length; index += 1) {
-    if (historyState.__route.stack[index] !== nextPath) {
-      continue;
-    }
-
-    const distance = Math.abs(index - historyState.__route.index);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestIndex = index;
-    }
-  }
-
-  return nearestIndex;
+  return null;
 };
 
 const reconcileManagedRouteState = (nextPath: string, nextHistoryState: unknown): RouteHistoryState['__route'] => {
