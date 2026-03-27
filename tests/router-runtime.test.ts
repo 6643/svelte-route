@@ -276,6 +276,17 @@ describe('router runtime', () => {
     expect(history.state).toBe('raw-state');
   });
 
+  test('native history.pushState to the same routeable path records a duplicate back hint', () => {
+    expect(routeCurrentPath()).toBe('/a');
+
+    history.pushState({ duplicate: 1 }, '', '/a');
+
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBe('/a');
+    expect(routeForwardPath()).toBeNull();
+    expect(history.state).toEqual({ duplicate: 1 });
+  });
+
   test('native history.replaceState synchronizes runtime helpers without rewriting object state payloads', () => {
     routePush('/b');
 
@@ -324,6 +335,28 @@ describe('router runtime', () => {
     expect(routeBackPath()).toBe('/a');
     expect(routeForwardPath()).toBeNull();
     expect(history.state).toBe('raw-state');
+  });
+
+  test('popstate picks the correct duplicate route entry for native states that repeat a path', () => {
+    expect(routeCurrentPath()).toBe('/a');
+
+    history.pushState({ step: 1 }, '', '/b');
+    history.pushState({ step: 2 }, '', '/a');
+
+    replaceHistoryStateWithoutRuntimeSync({ step: 1 }, '/b');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/b');
+    expect(routeBackPath()).toBe('/a');
+    expect(routeForwardPath()).toBe('/a');
+
+    replaceHistoryStateWithoutRuntimeSync({ step: 2 }, '/a');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBe('/b');
+    expect(routeForwardPath()).toBeNull();
+    expect(history.state).toEqual({ step: 2 });
   });
 
   test('popstate repairs valid-shape router managed history state from another owner', () => {
