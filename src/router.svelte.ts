@@ -30,6 +30,7 @@ let runtimeHistory: History | null = null;
 let originalPushState: History['pushState'] | null = null;
 let originalReplaceState: History['replaceState'] | null = null;
 let suppressPatchedHistorySync = false;
+let historyStateReferences: unknown[] = [undefined];
 let historyStateSnapshots: unknown[] = [undefined];
 
 const invalidateRouteMatch = (): void => {
@@ -265,22 +266,28 @@ const createRuntimeHistoryState = (browserState: unknown, route: RouteHistorySta
   };
 };
 
-const clampHistoryStateSnapshots = (snapshots: unknown[], index: number): { index: number; snapshots: unknown[] } => {
-  if (snapshots.length <= MAX_MANAGED_HISTORY_ENTRIES) {
+const clampHistoryStateEntries = <T>(entries: T[], index: number): { index: number; entries: T[] } => {
+  if (entries.length <= MAX_MANAGED_HISTORY_ENTRIES) {
     return {
       index,
-      snapshots: snapshots.slice()
+      entries: entries.slice()
     };
   }
 
   const centeredStart = index - Math.floor((MAX_MANAGED_HISTORY_ENTRIES - 1) / 2);
-  const maxStart = snapshots.length - MAX_MANAGED_HISTORY_ENTRIES;
+  const maxStart = entries.length - MAX_MANAGED_HISTORY_ENTRIES;
   const start = Math.max(0, Math.min(centeredStart, maxStart));
 
   return {
     index: index - start,
-    snapshots: snapshots.slice(start, start + MAX_MANAGED_HISTORY_ENTRIES)
+    entries: entries.slice(start, start + MAX_MANAGED_HISTORY_ENTRIES)
   };
+};
+
+const replaceHistoryReferenceAtIndex = (index: number, reference: unknown): unknown[] => {
+  const nextReferences = historyStateReferences.slice();
+  nextReferences[index] = reference;
+  return nextReferences;
 };
 
 const replaceHistorySnapshotAtIndex = (index: number, snapshot: unknown): unknown[] => {
@@ -289,10 +296,16 @@ const replaceHistorySnapshotAtIndex = (index: number, snapshot: unknown): unknow
   return nextSnapshots;
 };
 
+const pushHistoryReference = (reference: unknown): unknown[] => {
+  const nextIndex = historyState.__route.index + 1;
+  const nextReferences = [...historyStateReferences.slice(0, nextIndex), reference];
+  return clampHistoryStateEntries(nextReferences, nextIndex).entries;
+};
+
 const pushHistorySnapshot = (snapshot: unknown): unknown[] => {
   const nextIndex = historyState.__route.index + 1;
   const nextSnapshots = [...historyStateSnapshots.slice(0, nextIndex), snapshot];
-  return clampHistoryStateSnapshots(nextSnapshots, nextIndex).snapshots;
+  return clampHistoryStateEntries(nextSnapshots, nextIndex).entries;
 };
 
 const selectNearestHistoryIndex = (candidates: number[]): number | null => {
@@ -324,6 +337,7 @@ const selectNearestHistoryIndex = (candidates: number[]): number | null => {
 };
 
 const findNearestKnownRouteIndex = (nextPath: string, nextHistoryState: unknown): number | null => {
+  const referenceMatches: number[] = [];
   const exactMatches: number[] = [];
   const pathMatches: number[] = [];
 
@@ -334,9 +348,19 @@ const findNearestKnownRouteIndex = (nextPath: string, nextHistoryState: unknown)
 
     pathMatches.push(index);
 
+    if (Object.is(historyStateReferences[index], nextHistoryState)) {
+      referenceMatches.push(index);
+      continue;
+    }
+
     if (areHistoryStateSnapshotsEqual(historyStateSnapshots[index], nextHistoryState)) {
       exactMatches.push(index);
     }
+  }
+
+  const referenceIndex = selectNearestHistoryIndex(referenceMatches);
+  if (referenceIndex != null) {
+    return referenceIndex;
   }
 
   const exactIndex = selectNearestHistoryIndex(exactMatches);
@@ -382,6 +406,11 @@ const syncRuntimeFromBrowser = (nextHistoryState: unknown): boolean => {
     const previousRouteState = historyState.__route;
     const nextRouteState = reconcileManagedRouteState(nextPath, nextHistoryState);
     historyState = createRuntimeHistoryState(nextHistoryState, nextRouteState);
+    historyStateReferences =
+      nextRouteState.stack.length === previousRouteState.stack.length &&
+      nextRouteState.stack.every((path, index) => path === previousRouteState.stack[index])
+        ? replaceHistoryReferenceAtIndex(nextRouteState.index, nextHistoryState)
+        : Array.from({ length: nextRouteState.stack.length }, (_, index) => (index === nextRouteState.index ? nextHistoryState : undefined));
     historyStateSnapshots =
       nextRouteState.stack.length === previousRouteState.stack.length &&
       nextRouteState.stack.every((path, index) => path === previousRouteState.stack[index])
@@ -398,6 +427,11 @@ const syncRuntimeFromBrowser = (nextHistoryState: unknown): boolean => {
 
   const previousRouteState = historyState.__route;
   const normalizedState = normalizeHistoryState(nextHistoryState, nextPath, historyOwner);
+  historyStateReferences =
+    normalizedState.__route.stack.length === previousRouteState.stack.length &&
+    normalizedState.__route.stack.every((path, index) => path === previousRouteState.stack[index])
+      ? replaceHistoryReferenceAtIndex(normalizedState.__route.index, nextHistoryState)
+      : Array.from({ length: normalizedState.__route.stack.length }, (_, index) => (index === normalizedState.__route.index ? nextHistoryState : undefined));
   historyStateSnapshots =
     normalizedState.__route.stack.length === previousRouteState.stack.length &&
     normalizedState.__route.stack.every((path, index) => path === previousRouteState.stack[index])
@@ -433,6 +467,7 @@ const syncRuntimeFromExternalHistoryMutation = (kind: 'push' | 'replace', previo
 
   if (!pathChanged && (kind === 'replace' || hashOnlyChange)) {
     historyState = createRuntimeHistoryState(history.state, historyState.__route);
+    historyStateReferences = replaceHistoryReferenceAtIndex(historyState.__route.index, history.state);
     historyStateSnapshots = replaceHistorySnapshotAtIndex(historyState.__route.index, nextSnapshot);
     return;
   }
@@ -442,6 +477,7 @@ const syncRuntimeFromExternalHistoryMutation = (kind: 'push' | 'replace', previo
 
   currentPath = nextPath;
   historyState = nextState;
+  historyStateReferences = kind === 'push' ? pushHistoryReference(history.state) : replaceHistoryReferenceAtIndex(historyState.__route.index, history.state);
   historyStateSnapshots = kind === 'push' ? pushHistorySnapshot(nextSnapshot) : replaceHistorySnapshotAtIndex(historyState.__route.index, nextSnapshot);
 
   if (pathChanged) {
@@ -555,6 +591,7 @@ const navigate = (kind: 'push' | 'replace', target: string): void => {
 
   currentPath = nextPath;
   historyState = nextState;
+  historyStateReferences = kind === 'push' ? pushHistoryReference(nextState) : replaceHistoryReferenceAtIndex(historyState.__route.index, nextState);
   historyStateSnapshots =
     kind === 'push' ? pushHistorySnapshot(cloneHistoryStateSnapshot(nextState)) : replaceHistorySnapshotAtIndex(historyState.__route.index, cloneHistoryStateSnapshot(nextState));
   invalidateRouteMatch();
@@ -639,6 +676,7 @@ export const __resetRouteSystemForTest = (): void => {
   initialized = false;
   currentPath = '/';
   historyOwner = createManagedHistoryOwner();
+  historyStateReferences = [undefined];
   historyStateSnapshots = [undefined];
   entries = [];
   listeners.clear();

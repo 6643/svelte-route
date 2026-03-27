@@ -383,6 +383,34 @@ describe('router runtime', () => {
     expect(history.state).toEqual({ same: true });
   });
 
+  test('popstate keeps exact hints when duplicate native entries reuse a stored state reference', () => {
+    expect(routeCurrentPath()).toBe('/a');
+
+    history.pushState({ mid: 1 }, '', '/b');
+    history.pushState({ same: true }, '', '/a');
+    const firstDuplicateState = history.state;
+    history.pushState({ mid: 2 }, '', '/b');
+    const secondMidState = history.state;
+    history.pushState({ same: true }, '', '/a');
+    const secondDuplicateState = history.state;
+
+    replaceHistoryStateWithoutRuntimeSync(secondMidState, '/b');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/b');
+    expect(routeBackPath()).toBe('/a');
+    expect(routeForwardPath()).toBe('/a');
+    expect(firstDuplicateState === secondDuplicateState).toBe(false);
+
+    replaceHistoryStateWithoutRuntimeSync(secondDuplicateState, '/a');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBe('/b');
+    expect(routeForwardPath()).toBeNull();
+    expect(history.state).toBe(secondDuplicateState);
+  });
+
   test('popstate repairs valid-shape router managed history state from another owner', () => {
     cleanupDom();
     cleanupDom = installDom('/b');
