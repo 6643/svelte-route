@@ -159,6 +159,32 @@ describe('router runtime', () => {
     expect(window.location.href).toBe('https://app.test/a?id=3#frag');
   });
 
+  test('bare question mark push clears search while preserving the current hash fragment', () => {
+    cleanupDom();
+    cleanupDom = installDom('/a?id=1#frag');
+    __resetRouteSystemForTest();
+
+    routePush('?');
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBe('/a?id=1');
+    expect(routeForwardPath()).toBeNull();
+    expect(window.location.hash).toBe('#frag');
+    expect(window.location.href).toBe('https://app.test/a#frag');
+  });
+
+  test('bare question mark replace clears search while preserving the current hash fragment', () => {
+    cleanupDom();
+    cleanupDom = installDom('/a?id=1#frag');
+    __resetRouteSystemForTest();
+
+    routeReplace('?');
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect(window.location.hash).toBe('#frag');
+    expect(window.location.href).toBe('https://app.test/a#frag');
+  });
+
   test('hash-only navigation targets are ignored as no-ops', () => {
     cleanupDom();
     cleanupDom = installDom('/a?id=1#start');

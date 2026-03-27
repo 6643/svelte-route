@@ -143,6 +143,16 @@ describe('navigation', () => {
     expect(normalizeNavigationTarget('#', '/user?id=1', 'https://app.test')).toBe('/user?id=1');
   });
 
+  test('keeps routeable anchor targets routable while dropping hashes during normalization', () => {
+    const queryOnly = getRawAnchorNavigationTarget(createAnchor('?page=2#frag'));
+    expect(queryOnly).toBe('?page=2#frag');
+    expect(normalizeNavigationTarget(queryOnly!, '/user?id=1', 'https://app.test')).toBe('/user?page=2');
+
+    const absolutePath = getRawAnchorNavigationTarget(createAnchor('/settings#advanced'));
+    expect(absolutePath).toBe('/settings#advanced');
+    expect(normalizeNavigationTarget(absolutePath!, '/user?id=1', 'https://app.test')).toBe('/settings');
+  });
+
   test('normalizes query only targets against current pathname', () => {
     expect(normalizeNavigationTarget('?page=2', '/user?id=1', 'https://app.test')).toBe('/user?page=2');
   });
