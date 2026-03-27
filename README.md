@@ -147,6 +147,7 @@ Navigation behavior:
 - Navigating to the current normalized path is a no-op
 - Hash-only navigation targets are ignored as no-ops
 - Browser back/forward keeps route rendering and helper outputs in sync
+- Native same-document `history.pushState()` and `history.replaceState()` calls are synchronized into router state
 - Router-managed back/forward hints are bounded to the most recent 100 managed entries
 - Query-only updates preserve the current hash fragment
 
@@ -156,6 +157,7 @@ Invalid navigation inputs throw:
 - `./foo`
 - `../foo`
 - `//elsewhere.test/path`
+- same-origin absolute URLs whose pathname begins with `//`
 - any absolute cross-origin URL
 
 ## Lazy Routes

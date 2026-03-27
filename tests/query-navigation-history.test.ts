@@ -123,6 +123,18 @@ describe('query decoders', () => {
       })
     ).toThrow('decoder boom');
   });
+
+  test('decoding dangerous keys does not mutate the props object prototype', () => {
+    const props = decodeRouteProps('?__proto__=boom', {
+      $__proto__(raw: string | null) {
+        return { polluted: raw };
+      }
+    });
+
+    expect(Object.getPrototypeOf(props)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(props, '__proto__')).toBe(true);
+    expect((props as Record<string, unknown>).polluted).toBeUndefined();
+  });
 });
 
 describe('route validation', () => {
@@ -163,6 +175,12 @@ describe('navigation', () => {
 
   test('normalizes same origin absolute urls', () => {
     expect(normalizeNavigationTarget('https://app.test/user?id=1#hash', '/', 'https://app.test')).toBe('/user?id=1');
+  });
+
+  test('rejects same origin absolute urls that resolve to a pathname starting with double slash', () => {
+    expect(() => normalizeNavigationTarget('https://app.test//elsewhere.test/evil?x=1', '/', 'https://app.test')).toThrow(
+      /pathname starting with \/\//
+    );
   });
 
   test('drops hash from normalized targets', () => {

@@ -31,7 +31,7 @@ export const decodeQueryValue = (raw: string | null, decoder: RouteDecoder): unk
 
 export const decodeRouteProps = (search: string, decoders: RouteDecoderMap): Record<string, unknown> => {
   const params = new URLSearchParams(search);
-  const output: Record<string, unknown> = {};
+  const output = Object.create(null) as Record<string, unknown>;
 
   for (const key in decoders) {
     const name = key.slice(1);

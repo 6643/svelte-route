@@ -22,6 +22,11 @@ const mount = (component: any, options: any) => {
   return instance;
 };
 
+const replaceHistoryStateWithoutRuntimeSync = (state: unknown, url: string) => {
+  const replaceState = Object.getPrototypeOf(history).replaceState as History['replaceState'];
+  replaceState.call(history, state, '', url);
+};
+
 const installDom = (path: string) => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
     url: `https://app.test${path}`
@@ -229,6 +234,30 @@ describe('Route component', () => {
     expect(target.querySelector('[data-testid="sync-b"]')?.textContent).toBe('{}');
   });
 
+  test('native history.pushState rerenders the matched route', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/a');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const SyncB = await loadCompiledComponent('./tests/fixtures/SyncB.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    mount(Route, { target, props: { path: '/a', component: SyncA } });
+    mounted = mount(Route, { target, props: { path: '/b', component: SyncB } });
+
+    flushSync();
+    expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{}');
+
+    history.pushState({ foo: 1 }, '', '/b');
+    flushSync();
+
+    expect(target.querySelector('[data-testid="sync-b"]')?.textContent).toBe('{}');
+    expect(target.querySelector('[data-testid="sync-a"]')).toBeNull();
+  });
+
   test('popstate changes rerender the matched route', async () => {
     cleanupDom();
     cleanupDom = installDom('/a');
@@ -246,14 +275,13 @@ describe('Route component', () => {
     flushSync();
     expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{}');
 
-    history.replaceState(
+    replaceHistoryStateWithoutRuntimeSync(
       {
         __route: {
           index: 1,
           stack: ['/a', '/b']
         }
       },
-      '',
       '/b'
     );
     window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));

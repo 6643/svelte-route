@@ -19,16 +19,32 @@ const listeners = new Set<() => void>();
 let matchedRouteId: symbol | null = null;
 let matchDirty = true;
 let runtimeWindow: Window | null = null;
+let runtimeHistory: History | null = null;
+let originalPushState: History['pushState'] | null = null;
+let originalReplaceState: History['replaceState'] | null = null;
+let suppressPatchedHistorySync = false;
 
 const invalidateRouteMatch = (): void => {
   matchDirty = true;
 };
 
 const readCurrentUrl = (): string => `${window.location.pathname}${window.location.search}${window.location.hash}` || '/';
+const readForeignHistoryFields = (state: unknown): Record<string, unknown> => (state && typeof state === 'object' ? { ...(state as Record<string, unknown>) } : {});
 
 const notify = (): void => {
   for (const listener of listeners) {
     listener();
+  }
+};
+
+const withPatchedHistorySyncSuppressed = (run: () => void): void => {
+  const previous = suppressPatchedHistorySync;
+  suppressPatchedHistorySync = true;
+
+  try {
+    run();
+  } finally {
+    suppressPatchedHistorySync = previous;
   }
 };
 
@@ -82,24 +98,101 @@ const syncRuntimeFromBrowser = (nextHistoryState: unknown): boolean => {
   return nextHistoryState !== normalizedState;
 };
 
+const commitHistoryState = (kind: 'push' | 'replace', state: RouteHistoryState, url: string): void => {
+  withPatchedHistorySyncSuppressed(() => {
+    if (kind === 'push') {
+      (originalPushState ?? history.pushState).call(history, state, '', url);
+      return;
+    }
+
+    (originalReplaceState ?? history.replaceState).call(history, state, '', url);
+  });
+};
+
+const syncRuntimeFromExternalHistoryMutation = (kind: 'push' | 'replace'): void => {
+  const nextPath = readCurrentPath();
+  const nextRouteState = kind === 'push' ? buildPushState(historyState, nextPath, historyOwner) : buildReplaceState(historyState, nextPath, historyOwner);
+  const pathChanged = nextPath !== currentPath;
+  const nextState: RouteHistoryState = {
+    ...readForeignHistoryFields(history.state),
+    __route: nextRouteState.__route
+  };
+
+  currentPath = nextPath;
+  historyState = nextState;
+
+  if (pathChanged) {
+    invalidateRouteMatch();
+  }
+
+  commitHistoryState('replace', nextState, readCurrentUrl());
+  notify();
+};
+
 const handlePopState = (event: PopStateEvent): void => {
   ensureBrowser();
 
   const repaired = syncRuntimeFromBrowser(event.state);
   if (repaired) {
-    history.replaceState(historyState, '', readCurrentUrl());
+    commitHistoryState('replace', historyState, readCurrentUrl());
   }
 
   notify();
 };
 
+const restorePatchedHistory = (): void => {
+  if (runtimeHistory) {
+    if (originalPushState) {
+      runtimeHistory.pushState = originalPushState;
+    }
+
+    if (originalReplaceState) {
+      runtimeHistory.replaceState = originalReplaceState;
+    }
+  }
+
+  runtimeHistory = null;
+  originalPushState = null;
+  originalReplaceState = null;
+  suppressPatchedHistorySync = false;
+};
+
+const patchRuntimeHistory = (): void => {
+  if (runtimeHistory === history) {
+    return;
+  }
+
+  restorePatchedHistory();
+  runtimeHistory = history;
+  originalPushState = history.pushState;
+  originalReplaceState = history.replaceState;
+
+  history.pushState = ((data: unknown, unused: string, url?: string | URL | null): void => {
+    originalPushState?.call(history, data, unused, url);
+
+    if (!suppressPatchedHistorySync) {
+      syncRuntimeFromExternalHistoryMutation('push');
+    }
+  }) as History['pushState'];
+
+  history.replaceState = ((data: unknown, unused: string, url?: string | URL | null): void => {
+    originalReplaceState?.call(history, data, unused, url);
+
+    if (!suppressPatchedHistorySync) {
+      syncRuntimeFromExternalHistoryMutation('replace');
+    }
+  }) as History['replaceState'];
+};
+
 const bindRuntimeWindow = (): void => {
-  if (runtimeWindow === window) {
+  if (runtimeWindow === window && runtimeHistory === history) {
     return;
   }
 
   runtimeWindow?.removeEventListener('popstate', handlePopState);
+  restorePatchedHistory();
   window.addEventListener('popstate', handlePopState);
+  patchRuntimeHistory();
   runtimeWindow = window;
 };
 
@@ -135,11 +228,7 @@ const navigate = (kind: 'push' | 'replace', target: string): void => {
   const nextState =
     kind === 'push' ? buildPushState(historyState, nextPath, historyOwner) : buildReplaceState(historyState, nextPath, historyOwner);
 
-  if (kind === 'push') {
-    history.pushState(nextState, '', nextUrl);
-  } else {
-    history.replaceState(nextState, '', nextUrl);
-  }
+  commitHistoryState(kind, nextState, nextUrl);
 
   currentPath = nextPath;
   historyState = nextState;
@@ -220,6 +309,7 @@ export const __createRouteHistoryStateForTest = (route: {
 
 export const __resetRouteSystemForTest = (): void => {
   runtimeWindow?.removeEventListener('popstate', handlePopState);
+  restorePatchedHistory();
   runtimeWindow = null;
   initialized = false;
   currentPath = '/';

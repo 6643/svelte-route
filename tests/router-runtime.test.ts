@@ -62,6 +62,11 @@ const installDom = (path: string) => {
   };
 };
 
+const replaceHistoryStateWithoutRuntimeSync = (state: unknown, url: string) => {
+  const replaceState = Object.getPrototypeOf(history).replaceState as History['replaceState'];
+  replaceState.call(history, state, '', url);
+};
+
 beforeEach(() => {
   cleanupDom = installDom('/a');
   __resetRouteSystemForTest();
@@ -90,14 +95,13 @@ describe('router runtime', () => {
   test('popstate synchronizes runtime path and history accessors', () => {
     routePush('/b');
 
-    history.replaceState(
+    replaceHistoryStateWithoutRuntimeSync(
       {
         __route: __createRouteHistoryStateForTest({
           index: 0,
           stack: ['/a', '/b']
         })
       },
-      '',
       '/a'
     );
     window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
@@ -118,6 +122,7 @@ describe('router runtime', () => {
   test('throws on bare relative and cross origin inputs', () => {
     expect(() => routePush('foo')).toThrow(/Relative navigation/);
     expect(() => routeReplace('https://elsewhere.test/a')).toThrow(/Cross-origin/);
+    expect(() => routePush('https://app.test//elsewhere.test/evil?x=1')).toThrow(/pathname starting with \/\//);
   });
 
   test('throws outside browser', () => {
@@ -204,7 +209,7 @@ describe('router runtime', () => {
   });
 
   test('popstate repairs malformed router managed history state', () => {
-    history.replaceState(
+    replaceHistoryStateWithoutRuntimeSync(
       {
         foo: 1,
         __route: {
@@ -212,7 +217,6 @@ describe('router runtime', () => {
           stack: [42]
         }
       },
-      '',
       '/a'
     );
     window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
@@ -227,12 +231,42 @@ describe('router runtime', () => {
     });
   });
 
+  test('native history.pushState synchronizes runtime helpers and preserves foreign fields', () => {
+    expect(routeCurrentPath()).toBe('/a');
+
+    history.pushState({ foo: 1 }, '', '/b?x=1');
+
+    expect(routeCurrentPath()).toBe('/b?x=1');
+    expect(routeBackPath()).toBe('/a');
+    expect(routeForwardPath()).toBeNull();
+    expect((history.state as { foo?: number }).foo).toBe(1);
+    expectManagedRouteHistoryState(history.state, {
+      index: 1,
+      stack: ['/a', '/b?x=1']
+    });
+  });
+
+  test('native history.replaceState synchronizes runtime helpers and preserves foreign fields', () => {
+    routePush('/b');
+
+    history.replaceState({ foo: 1 }, '', '/c?y=2');
+
+    expect(routeCurrentPath()).toBe('/c?y=2');
+    expect(routeBackPath()).toBe('/a');
+    expect(routeForwardPath()).toBeNull();
+    expect((history.state as { foo?: number }).foo).toBe(1);
+    expectManagedRouteHistoryState(history.state, {
+      index: 1,
+      stack: ['/a', '/c?y=2']
+    });
+  });
+
   test('popstate repairs valid-shape router managed history state from another owner', () => {
     cleanupDom();
     cleanupDom = installDom('/b');
     __resetRouteSystemForTest();
 
-    history.replaceState(
+    replaceHistoryStateWithoutRuntimeSync(
       {
         foo: 1,
         __route: createManagedRouteState(
@@ -243,7 +277,6 @@ describe('router runtime', () => {
           'foreign-owner'
         )
       },
-      '',
       '/b'
     );
     window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
