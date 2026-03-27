@@ -29,7 +29,18 @@ const invalidateRouteMatch = (): void => {
 };
 
 const readCurrentUrl = (): string => `${window.location.pathname}${window.location.search}${window.location.hash}` || '/';
-const readForeignHistoryFields = (state: unknown): Record<string, unknown> => (state && typeof state === 'object' ? { ...(state as Record<string, unknown>) } : {});
+
+const isPlainHistoryStateObject = (state: unknown): state is Record<string, unknown> => {
+  if (!state || typeof state !== 'object') {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(state);
+  return prototype === Object.prototype || prototype === null;
+};
+
+const hasManagedRouteState = (state: unknown): state is { __route: unknown } =>
+  !!state && typeof state === 'object' && '__route' in (state as Record<string, unknown>);
 
 const notify = (): void => {
   for (const listener of listeners) {
@@ -83,11 +94,79 @@ const findMatchedRouteId = (routeEntries: RouteEntry[]): symbol | null => {
   return fallbackId;
 };
 
+const createRuntimeHistoryState = (browserState: unknown, route: RouteHistoryState['__route']): RouteHistoryState => {
+  if (isPlainHistoryStateObject(browserState)) {
+    return {
+      ...browserState,
+      __route: route
+    };
+  }
+
+  return {
+    __route: route
+  };
+};
+
+const findNearestKnownRouteIndex = (nextPath: string): number | null => {
+  let nearestIndex: number | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < historyState.__route.stack.length; index += 1) {
+    if (historyState.__route.stack[index] !== nextPath) {
+      continue;
+    }
+
+    const distance = Math.abs(index - historyState.__route.index);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  }
+
+  return nearestIndex;
+};
+
+const reconcileManagedRouteState = (nextPath: string): RouteHistoryState['__route'] => {
+  if (nextPath === currentPath) {
+    return historyState.__route;
+  }
+
+  const nearestIndex = findNearestKnownRouteIndex(nextPath);
+  if (nearestIndex != null) {
+    return createManagedRouteState(
+      {
+        index: nearestIndex,
+        stack: historyState.__route.stack
+      },
+      historyOwner
+    );
+  }
+
+  return createManagedRouteState(
+    {
+      index: 0,
+      stack: [nextPath]
+    },
+    historyOwner
+  );
+};
+
 const syncRuntimeFromBrowser = (nextHistoryState: unknown): boolean => {
   const nextPath = readCurrentPath();
-  const normalizedState = normalizeHistoryState(nextHistoryState, nextPath, historyOwner);
   const pathChanged = nextPath !== currentPath;
 
+  if (!hasManagedRouteState(nextHistoryState)) {
+    historyState = createRuntimeHistoryState(nextHistoryState, reconcileManagedRouteState(nextPath));
+    currentPath = nextPath;
+
+    if (pathChanged) {
+      invalidateRouteMatch();
+    }
+
+    return false;
+  }
+
+  const normalizedState = normalizeHistoryState(nextHistoryState, nextPath, historyOwner);
   currentPath = nextPath;
   historyState = normalizedState;
 
@@ -111,21 +190,20 @@ const commitHistoryState = (kind: 'push' | 'replace', state: RouteHistoryState, 
 
 const syncRuntimeFromExternalHistoryMutation = (kind: 'push' | 'replace'): void => {
   const nextPath = readCurrentPath();
-  const nextRouteState = kind === 'push' ? buildPushState(historyState, nextPath, historyOwner) : buildReplaceState(historyState, nextPath, historyOwner);
   const pathChanged = nextPath !== currentPath;
-  const nextState: RouteHistoryState = {
-    ...readForeignHistoryFields(history.state),
-    __route: nextRouteState.__route
-  };
+
+  if (!pathChanged) {
+    historyState = createRuntimeHistoryState(history.state, historyState.__route);
+    return;
+  }
+
+  const nextRouteState = kind === 'push' ? buildPushState(historyState, nextPath, historyOwner) : buildReplaceState(historyState, nextPath, historyOwner);
+  const nextState = createRuntimeHistoryState(history.state, nextRouteState.__route);
 
   currentPath = nextPath;
   historyState = nextState;
 
-  if (pathChanged) {
-    invalidateRouteMatch();
-  }
-
-  commitHistoryState('replace', nextState, readCurrentUrl());
+  invalidateRouteMatch();
   notify();
 };
 

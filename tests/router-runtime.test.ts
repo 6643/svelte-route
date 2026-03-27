@@ -208,6 +208,28 @@ describe('router runtime', () => {
     expect(window.location.href).toBe('https://app.test/a?id=1#start');
   });
 
+  test('native hash-only history mutations do not change route helpers', () => {
+    cleanupDom();
+    cleanupDom = installDom('/a?id=1#start');
+    __resetRouteSystemForTest();
+
+    expect(routeCurrentPath()).toBe('/a?id=1');
+
+    history.pushState({ foo: 1 }, '', '#next');
+    expect(routeCurrentPath()).toBe('/a?id=1');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect((history.state as { foo?: number }).foo).toBe(1);
+    expect(window.location.href).toBe('https://app.test/a?id=1#next');
+
+    history.replaceState({ foo: 2 }, '', '#other');
+    expect(routeCurrentPath()).toBe('/a?id=1');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect((history.state as { foo?: number }).foo).toBe(2);
+    expect(window.location.href).toBe('https://app.test/a?id=1#other');
+  });
+
   test('popstate repairs malformed router managed history state', () => {
     replaceHistoryStateWithoutRuntimeSync(
       {
@@ -231,34 +253,77 @@ describe('router runtime', () => {
     });
   });
 
-  test('native history.pushState synchronizes runtime helpers and preserves foreign fields', () => {
+  test('native history.pushState synchronizes runtime helpers without rewriting object state payloads', () => {
     expect(routeCurrentPath()).toBe('/a');
 
-    history.pushState({ foo: 1 }, '', '/b?x=1');
+    const state = { foo: 1 };
+    history.pushState(state, '', '/b?x=1');
 
     expect(routeCurrentPath()).toBe('/b?x=1');
     expect(routeBackPath()).toBe('/a');
     expect(routeForwardPath()).toBeNull();
-    expect((history.state as { foo?: number }).foo).toBe(1);
-    expectManagedRouteHistoryState(history.state, {
-      index: 1,
-      stack: ['/a', '/b?x=1']
-    });
+    expect(history.state).toEqual(state);
   });
 
-  test('native history.replaceState synchronizes runtime helpers and preserves foreign fields', () => {
+  test('native history.pushState preserves non-object state payloads', () => {
+    expect(routeCurrentPath()).toBe('/a');
+
+    history.pushState('raw-state', '', '/b');
+
+    expect(routeCurrentPath()).toBe('/b');
+    expect(routeBackPath()).toBe('/a');
+    expect(routeForwardPath()).toBeNull();
+    expect(history.state).toBe('raw-state');
+  });
+
+  test('native history.replaceState synchronizes runtime helpers without rewriting object state payloads', () => {
     routePush('/b');
 
-    history.replaceState({ foo: 1 }, '', '/c?y=2');
+    const state = { foo: 1 };
+    history.replaceState(state, '', '/c?y=2');
 
     expect(routeCurrentPath()).toBe('/c?y=2');
     expect(routeBackPath()).toBe('/a');
     expect(routeForwardPath()).toBeNull();
-    expect((history.state as { foo?: number }).foo).toBe(1);
-    expectManagedRouteHistoryState(history.state, {
-      index: 1,
-      stack: ['/a', '/c?y=2']
-    });
+    expect(history.state).toEqual(state);
+  });
+
+  test('native history.replaceState preserves non-object state payloads', () => {
+    expect(routeCurrentPath()).toBe('/a');
+
+    history.replaceState(7, '', '/a?x=1');
+
+    expect(routeCurrentPath()).toBe('/a?x=1');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect(history.state).toBe(7);
+  });
+
+  test('popstate into a native non-object state entry keeps runtime back-forward hints', () => {
+    history.pushState('raw-state', '', '/b');
+
+    replaceHistoryStateWithoutRuntimeSync(
+      {
+        __route: __createRouteHistoryStateForTest({
+          index: 0,
+          stack: ['/a', '/b']
+        })
+      },
+      '/a'
+    );
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/a');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBe('/b');
+
+    replaceHistoryStateWithoutRuntimeSync('raw-state', '/b');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: history.state }));
+
+    expect(routeCurrentPath()).toBe('/b');
+    expect(routeBackPath()).toBe('/a');
+    expect(routeForwardPath()).toBeNull();
+    expect(history.state).toBe('raw-state');
   });
 
   test('popstate repairs valid-shape router managed history state from another owner', () => {
