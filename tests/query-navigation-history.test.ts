@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 import { buildPushState, buildReplaceState, normalizeHistoryState } from '../src/history.ts';
+import { lazyRoute } from '../src/lazy.ts';
 import { getRawAnchorNavigationTarget, normalizeNavigationTarget } from '../src/navigation.ts';
 import { decodeQueryValue, decodeRouteProps } from '../src/query.ts';
 import { resolveLazyRouteComponent } from '../src/route-validation.ts';
+import type { SyncRouteComponent } from '../src/types.ts';
 
 const PRIMARY_OWNER = 'owner-primary';
 const FOREIGN_OWNER = 'owner-foreign';
@@ -127,6 +129,12 @@ describe('route validation', () => {
   test('lazy route modules must expose a default component export', () => {
     expect(() => resolveLazyRouteComponent({})).toThrow(/lazy route component/i);
   });
+
+  test('lazyRoute rejects non-zero-argument loaders', () => {
+    expect(() =>
+      lazyRoute(((value: string) => Promise.resolve({ default: (() => null) as unknown as SyncRouteComponent })) as never)
+    ).toThrow(/zero-argument/i);
+  });
 });
 
 describe('navigation', () => {
@@ -160,6 +168,10 @@ describe('navigation', () => {
     expect(getRawAnchorNavigationTarget(createAnchor('foo'))).toBeNull();
     expect(getRawAnchorNavigationTarget(createAnchor('./foo'))).toBeNull();
     expect(getRawAnchorNavigationTarget(createAnchor('../foo'))).toBeNull();
+  });
+
+  test('treats javascript href as non-routable', () => {
+    expect(getRawAnchorNavigationTarget(createAnchor('javascript:alert(1)'))).toBeNull();
   });
 });
 

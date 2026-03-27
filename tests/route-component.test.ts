@@ -737,4 +737,67 @@ describe('Route component', () => {
     expect(loaderCalls).toBe(1);
     resolveSecondLoad?.({ default: (() => null) as unknown as SyncRouteComponent });
   });
+
+  test('failed lazy routes may retry after the route becomes inactive and active again', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/lazy');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    let loaderCalls = 0;
+    let resolveSecondLoad: ((value: { default: SyncRouteComponent }) => void) | undefined;
+    const Lazy = () => {
+      loaderCalls += 1;
+
+      if (loaderCalls === 1) {
+        return Promise.reject(new Error('boom'));
+      }
+
+      return new Promise<{ default: SyncRouteComponent }>((resolve) => {
+        resolveSecondLoad = resolve;
+      });
+    };
+
+    mount(Route, {
+      target,
+      props: {
+        path: '/lazy',
+        component: lazyRoute(Lazy)
+      }
+    });
+
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '/other',
+        component: SyncA
+      }
+    });
+
+    try {
+      flushSync();
+      await Promise.resolve();
+      await Promise.resolve();
+    } catch {}
+
+    expect(loaderCalls).toBe(1);
+
+    routePush('/other');
+    flushSync();
+    routePush('/lazy');
+    flushSync();
+
+    expect(loaderCalls).toBe(2);
+
+    resolveSecondLoad?.({ default: SyncA as SyncRouteComponent });
+    await Promise.resolve();
+    await Promise.resolve();
+    flushSync();
+
+    expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{}');
+  });
 });

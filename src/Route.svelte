@@ -152,6 +152,8 @@
     loadError = null;
 
     if (!active) {
+      lazyFailed = false;
+
       if (!lazyLoader) {
         resolvedComponent = null;
       }

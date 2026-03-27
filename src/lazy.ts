@@ -5,6 +5,10 @@ export const lazyRoute = (loader: LazyRouteLoader): LazyRouteDefinition => {
     throw new Error('lazyRoute loader must be a function');
   }
 
+  if (loader.length !== 0) {
+    throw new Error('lazyRoute loader must be a zero-argument function');
+  }
+
   return {
     kind: 'lazy-route',
     load: loader

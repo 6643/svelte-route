@@ -1,4 +1,5 @@
 const isBareRelativeHref = (raw: string): boolean => !raw.startsWith('/') && !raw.startsWith('?') && !raw.startsWith('#') && !/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(raw);
+const hasUnsupportedAbsoluteScheme = (raw: string): boolean => /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(raw) && !/^https?:/i.test(raw);
 
 export const normalizeNavigationTarget = (target: string, currentPath: string, origin: string): string => {
   if (target === '?') {
@@ -35,7 +36,7 @@ export const normalizeNavigationTarget = (target: string, currentPath: string, o
 export const getRawAnchorNavigationTarget = (anchor: HTMLAnchorElement): string | null => {
   const raw = anchor.getAttribute('href');
 
-  if (!raw || raw.startsWith('#') || isBareRelativeHref(raw)) {
+  if (!raw || raw.startsWith('#') || isBareRelativeHref(raw) || hasUnsupportedAbsoluteScheme(raw)) {
     return null;
   }
 
