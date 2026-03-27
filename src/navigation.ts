@@ -2,6 +2,10 @@ const isBareRelativeHref = (raw: string): boolean => !raw.startsWith('/') && !ra
 const hasUnsupportedAbsoluteScheme = (raw: string): boolean => /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(raw) && !/^https?:/i.test(raw);
 
 export const normalizeNavigationTarget = (target: string, currentPath: string, origin: string): string => {
+  if (target.startsWith('#')) {
+    return currentPath;
+  }
+
   if (target === '?') {
     return currentPath.split('?')[0] || '/';
   }

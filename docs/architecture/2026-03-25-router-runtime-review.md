@@ -7,15 +7,15 @@ Assess whether the current `svelte-route` runtime design is safe and maintainabl
 ## Scope
 
 Reviewed files:
-- `src/lib/router.svelte.ts`
-- `src/lib/history.ts`
-- `src/lib/Route.svelte`
+- `src/router.svelte.ts`
+- `src/history.ts`
+- `src/Route.svelte`
 
 This review focuses on runtime state ownership, browser integration, route registration, matching semantics, and future multi-instance constraints.
 
 ## Current Design Summary
 
-The router runtime is implemented as a module-level singleton in `src/lib/router.svelte.ts`.
+The router runtime is implemented as a module-level singleton in `src/router.svelte.ts`.
 All mounted `<Route>` components register themselves into one shared in-memory route table. Navigation helpers and browser `popstate` handling also operate against this same singleton state.
 
 Core singleton state:

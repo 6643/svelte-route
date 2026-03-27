@@ -145,6 +145,7 @@ Navigation behavior:
 - `routePush()` appends a new history entry
 - `routeReplace()` rewrites the current history entry
 - Navigating to the current normalized path is a no-op
+- Hash-only navigation targets are ignored as no-ops
 - Browser back/forward keeps route rendering and helper outputs in sync
 - Router-managed back/forward hints are bounded to the most recent 100 managed entries
 - Query-only updates preserve the current hash fragment

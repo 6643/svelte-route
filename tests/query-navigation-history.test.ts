@@ -138,6 +138,11 @@ describe('route validation', () => {
 });
 
 describe('navigation', () => {
+  test('ignores hash-only targets and keeps the current normalized path', () => {
+    expect(normalizeNavigationTarget('#frag', '/user?id=1', 'https://app.test')).toBe('/user?id=1');
+    expect(normalizeNavigationTarget('#', '/user?id=1', 'https://app.test')).toBe('/user?id=1');
+  });
+
   test('normalizes query only targets against current pathname', () => {
     expect(normalizeNavigationTarget('?page=2', '/user?id=1', 'https://app.test')).toBe('/user?page=2');
   });

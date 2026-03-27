@@ -159,6 +159,24 @@ describe('router runtime', () => {
     expect(window.location.href).toBe('https://app.test/a?id=3#frag');
   });
 
+  test('hash-only navigation targets are ignored as no-ops', () => {
+    cleanupDom();
+    cleanupDom = installDom('/a?id=1#start');
+    __resetRouteSystemForTest();
+
+    routePush('#next');
+    expect(routeCurrentPath()).toBe('/a?id=1');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect(window.location.href).toBe('https://app.test/a?id=1#start');
+
+    routeReplace('#other');
+    expect(routeCurrentPath()).toBe('/a?id=1');
+    expect(routeBackPath()).toBeNull();
+    expect(routeForwardPath()).toBeNull();
+    expect(window.location.href).toBe('https://app.test/a?id=1#start');
+  });
+
   test('popstate repairs malformed router managed history state', () => {
     history.replaceState(
       {
