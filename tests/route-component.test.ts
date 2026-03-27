@@ -636,4 +636,57 @@ describe('Route component', () => {
     expect(thrown instanceof Error).toBe(true);
     expect((thrown as Error).message.includes('return a promise')).toBe(true);
   });
+
+  test('inactive lazy route failures do not throw into the current page', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/lazy');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/Route.svelte');
+    const SyncA = await loadCompiledComponent('./tests/fixtures/SyncA.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    let rejectLoader: ((error: Error) => void) | undefined;
+    const Lazy = () =>
+      new Promise<{ default: SyncRouteComponent }>((_, reject) => {
+        rejectLoader = reject;
+      });
+
+    mount(Route, {
+      target,
+      props: {
+        path: '/lazy',
+        component: lazyRoute(Lazy)
+      }
+    });
+
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '/other',
+        component: SyncA
+      }
+    });
+
+    flushSync();
+    routePush('/other');
+    flushSync();
+
+    expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{}');
+
+    let thrown: unknown = null;
+
+    try {
+      rejectLoader?.(new Error('late boom'));
+      await Promise.resolve();
+      await Promise.resolve();
+      flushSync();
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeNull();
+    expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{}');
+  });
 });

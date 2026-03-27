@@ -145,6 +145,8 @@
     return active ? decodeRouteProps(getCurrentSearch(), entry.decoders) : {};
   });
 
+  const isCurrentRouteActive = (): boolean => getMatchedRouteId() === entry.id;
+
   $effect(() => {
     loadError = null;
 
@@ -193,8 +195,11 @@
       })
       .catch((error) => {
         if (!destroyed) {
-          loadError = error;
           pendingLoad = null;
+
+          if (isCurrentRouteActive()) {
+            loadError = error;
+          }
         }
       });
   });
