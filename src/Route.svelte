@@ -92,6 +92,7 @@
   let resolvedComponent = $state<SyncRouteComponent | null>(null);
   let lazyLoader = $state<LazyRouteLoader | null>(isLazyRouteDefinition(initialComponent) ? initialComponent.load : null);
   let pendingLoad = $state<Promise<{ default: SyncRouteComponent }> | null>(null);
+  let lazyFailed = $state(false);
   let loadError = $state<unknown | null>(null);
   let destroyed = false;
 
@@ -167,19 +168,20 @@
       return;
     }
 
-    if (pendingLoad) {
+    if (pendingLoad || lazyFailed) {
       return;
     }
   });
 
   $effect(() => {
-    if (!active || resolvedComponent || !lazyLoader || pendingLoad) {
+    if (!active || resolvedComponent || !lazyLoader || pendingLoad || lazyFailed) {
       return;
     }
 
     const nextLoad = lazyLoader();
 
     if (!isPromiseLike(nextLoad)) {
+      lazyFailed = true;
       loadError = new Error('Lazy route loader must return a promise');
       return;
     }
@@ -198,6 +200,7 @@
           pendingLoad = null;
 
           if (isCurrentRouteActive()) {
+            lazyFailed = true;
             loadError = error;
           }
         }

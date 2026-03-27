@@ -689,4 +689,52 @@ describe('Route component', () => {
     expect(thrown).toBeNull();
     expect(target.querySelector('[data-testid="sync-a"]')?.textContent).toBe('{}');
   });
+
+  test('active lazy loader failures are not retried automatically during the same mount', async () => {
+    cleanupDom();
+    cleanupDom = installDom('/lazy');
+    __resetRouteSystemForTest();
+
+    const Route = await loadCompiledComponent('./src/Route.svelte');
+    const target = document.createElement('div');
+    document.body.append(target);
+
+    let loaderCalls = 0;
+    let resolveSecondLoad: ((value: { default: SyncRouteComponent }) => void) | undefined;
+    const Lazy = () => {
+      loaderCalls += 1;
+
+      if (loaderCalls === 1) {
+        return Promise.reject(new Error('boom'));
+      }
+
+      return new Promise<{ default: SyncRouteComponent }>((resolve) => {
+        resolveSecondLoad = resolve;
+      });
+    };
+
+    mounted = mount(Route, {
+      target,
+      props: {
+        path: '/lazy',
+        component: lazyRoute(Lazy)
+      }
+    });
+
+    try {
+      flushSync();
+      await Promise.resolve();
+      await Promise.resolve();
+    } catch {}
+
+    try {
+      flushSync();
+      await Promise.resolve();
+      await Promise.resolve();
+    } catch {}
+
+    flushSync();
+    expect(loaderCalls).toBe(1);
+    resolveSecondLoad?.({ default: (() => null) as unknown as SyncRouteComponent });
+  });
 });
